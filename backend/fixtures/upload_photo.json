@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/storage/v1/object/postcard-photos/00000000-0000-4000-a000-00000000a11c/6acee6b3-adc1-42a9-a029-e834bc178932/photo.jpg",
+    "headers": {
+      "apikey": "<SUPABASE_PUBLISHABLE_KEY>",
+      "Authorization": "Bearer <user access token>",
+      "Content-Type": "image/jpeg",
+      "x-upsert": "false"
+    },
+    "body": "<JPEG bytes, max 10 MB>"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "Key": "postcard-photos/00000000-0000-4000-a000-00000000a11c/6acee6b3-adc1-42a9-a029-e834bc178932/photo.jpg",
+      "Id": "92ca0ed6-a8b4-4ecd-9d6a-5a808879df4a"
+    }
+  }
+}
