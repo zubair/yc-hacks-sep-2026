@@ -44,10 +44,12 @@ final class ComposeViewModel {
   }
 
   var canSend: Bool {
-    !isSending
-      && (presentation.state == .writing || presentation.state == .sealed)
-      && !draft.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      && (try? PostcardValidation.validate(draft)) != nil
+    guard !isSending, presentation.state == .writing || presentation.state == .sealed else { return false }
+    // An empty signature is filled from the profile at send time, exactly as `send()` does.
+    var candidate = draft
+    if candidate.senderName.isEmpty { candidate.senderName = session.profile?.displayName ?? "" }
+    return !candidate.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && (try? PostcardValidation.validate(candidate)) != nil
   }
 
   // MARK: Draft lifecycle
@@ -61,6 +63,14 @@ final class ComposeViewModel {
     canRetrySend = false
     lastSent = nil
     presentation.resetForNewDraft()
+  }
+
+  /// Demo only: give the first launch a finished front (photo, place, recipient) so the fold story starts immediately.
+  func seedDemoDraftIfEmpty(recipient: PostcardProfile, destination: String) {
+    guard draft.recipientId == nil, draft.message.isEmpty, draft.destination.isEmpty else { return }
+    draft = PostcardDraft(recipientId: recipient.id, recipientName: recipient.displayName,
+                          senderName: session.profile?.displayName ?? "", destination: destination, photoData: draft.photoData ?? defaultPhoto)
+    lookupResult = recipient
   }
 
   /// Entry point for "Write" and "Reply". Keeps an unsent draft the person has started (it is persisted

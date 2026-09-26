@@ -44,8 +44,11 @@ final class AppEnvironment {
     // Demo mode skips the sign-in screen: the fixture session starts as Alex so the Duo flow is one tap away.
     // Live mode (Local.xcconfig present) still goes through PostcardAuthView.
     let fixture = FixturePostcardService(signedIn: true)
-    let samplePhoto = UIImage(named: "DemoPhoto")?.jpegData(compressionQuality: 0.85)
-    return AppEnvironment(mode: .fixture, service: fixture, demo: fixture, draftStore: draftStore, haptics: SystemHaptics(), defaultPhoto: samplePhoto)
+    let samplePhoto = UIImage(named: "SamplePhoto")?.jpegData(compressionQuality: 0.85)
+    let environment = AppEnvironment(mode: .fixture, service: fixture, demo: fixture, draftStore: draftStore, haptics: SystemHaptics(), defaultPhoto: samplePhoto)
+    // The first demo launch opens on a finished front (photo, place, recipient) so the fold story starts immediately.
+    environment.compose.seedDemoDraftIfEmpty(recipient: FixturePostcardService.recipient, destination: "Cinque Terre")
+    return environment
   }
 
   // MARK: Demo-only controls (fixture mode). Clearly simulated; never available in live mode.
