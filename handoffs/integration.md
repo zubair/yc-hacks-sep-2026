@@ -4,7 +4,7 @@
 
 All four workstreams are merged. The app builds with Xcode 27.1 against the real `PostcardCore`, `PostcardServices`, `PostcardMotion`, and `PostcardUI` packages; the app's local contract stubs are gone. Integration also gated the Duo APIs on iOS 27.1 (app target iOS 17.0), added fixture demo controls and a UI test target, fixed the defects found by two code reviews and a security review, and added an opt-in live contract test that runs the Swift Supabase adapter against a real local stack.
 
-Verified: backend 19/19 on a from-scratch local stack; PostcardServices 11/11 including live tests (Linux); PostcardCore 1/1; PostcardUI form rules 6/6; app build succeeds; iPhone 17 Pro simulator 25/25 unit and 3/3 UI tests; iPhone Duo simulator unit tests pass, UI tests 1/3 (message-editor focus in the split layout, open). Not done: hosted deployment, app UI in live mode, a physical fold, real-user messaging.
+Verified on the final tree: backend 27/27 from scratch; PostcardServices 11/11 including live tests against the hardened backend (Linux); PostcardCore 1/1; PostcardUI 6/6; the app builds with Xcode 27.1; iPhone Duo (iOS 27.1) and iPhone 16 Pro (iOS 18.5) each pass 25/25 unit and 3/3 UI tests. Not done: hosted deployment, app UI in live mode, a physical fold, real-user messaging.
 
 Working branch: `claude/great-cray-2rrx7l`, based on `origin/integration/final` @ `8d7e9fc`, merged into `integration/final` through zubair/yc-hacks-sep-2026#3.
 
@@ -30,6 +30,15 @@ Integration commits (after the merges):
 | `2f10709` | Adapter: update-stream poll leak and full-reload churn; username-taken mapping; fixture parity |
 | `daa0cbb` | Backend: sent photos cannot be replaced or deleted; realtime inserts only |
 | `2146398` | App review fixes: sent-draft resurrection, retry semantics, per-account data, photo caching |
+
+### Second integration round (after #3 and #4 were merged)
+
+`integration/final` gained PR #4 (`claude/vigilant-hypatia-r7k61c`, a template-driven render pipeline under `renders/`), and two contributor branches moved on. Both were merged on top, with merge commits:
+
+| Branch | SHA | Merge commit | Resolution |
+|---|---|---|---|
+| `team/zafar` | `0a3cdc9` | `72d9488` | Zafar's `20260926000500_hardening.sql` supersedes the integration branch's `000500_protect_sent_photos` and `000600_realtime_insert_only` (the same fixes and more: delete-race protection, anonymous realtime, whitespace, an index; the duplicate `000500` version would also collide). Tests, the cleanup script, and the backend README follow the owner. Backend: 27/27 from scratch. The wire-contract test now reads expected values from the re-recorded fixtures (`d471b27`). |
+| `team/zubair` | `9f34463` | `e1563fa` | Zubair's redesign makes the compose screen the postcard (`PostcardExperienceView`, `PostcardOrnaments`, `RecipientSheet`) and replaces `DuoComposeStage`. It was written against the old stubs, so the merge adapts it: the demo seed uses the real fixture recipient (Sam Lee) and `SamplePhoto`, `ArrangementView` and the Duo toolbar modifiers are gated on iOS 27.1 with stacked/standard fallbacks, the recipient sheet shows `lookupMessage`, `canSend` fills an empty signature from the profile as `send()` does, the note editor gains a keyboard Done button, and the UI tests follow the new flow. |
 
 ## Conflict resolutions
 
@@ -59,7 +68,7 @@ Integration commits (after the merges):
 4. **Draft resume.** Write and Reply resume an unsent draft that has content instead of discarding it.
 5. **Offline launch.** Launching while offline shows a retryable "can't connect" state that keeps the session and draft. Before, it signed the user out.
 6. **Demo:**
-   - a bundled sample photo (`DemoPhoto`)
+   - a bundled sample photo (now `SamplePhoto`, shared with Zubair's seeded first draft)
    - a Demo menu with View as Sam Lee / Alex Rivera, Fail the next send, and Simulate offline
    - fixture sign-in that picks `alex` or `sam` from the email
 7. **Launch arguments.** `-resetDemo` clears the stored draft. `-forceDemo` forces fixture mode. UI tests always pass both.
@@ -118,21 +127,23 @@ Two read-only code reviews (app, packages) and a security review ran against the
 
 ## Commands and results
 
+Final tree (after the second integration round):
+
 | Command | Environment | Result |
 |---|---|---|
-| `supabase start -x imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor` | Linux container, CLI 2.118.0 (images from `public.ecr.aws`; Docker Hub returned 429) | Stack started |
-| `supabase db reset` then `cd tests/backend && SUPABASE_PUBLISHABLE_KEY=… npm test` | Local Supabase, all six migrations from scratch | 19/19 pass |
+| `supabase db reset` then `cd tests/backend && SUPABASE_PUBLISHABLE_KEY=… SUPABASE_SECRET_KEY=<local dev key> npm test` | Local Supabase (CLI 2.118.0, Linux container), all migrations from scratch | 27/27 pass (without the secret key, the service-role cleanup test skips: 26 pass, 1 skip) |
+| `cd packages/PostcardServices && POSTCARD_LIVE_SUPABASE_URL=http://127.0.0.1:54321 POSTCARD_LIVE_SUPABASE_PUBLISHABLE_KEY=… swift test` | Linux, Swift 6.4, hardened local stack | 11/11 pass with a WebSocket-capable libcurl; with Ubuntu 24.04's libcurl 8.5 the realtime test skips with the reason |
 | `cd packages/PostcardCore && swift test` | Linux, Swift 6.4 | 1/1 pass |
-| `cd packages/PostcardServices && POSTCARD_LIVE_SUPABASE_URL=http://127.0.0.1:54321 POSTCARD_LIVE_SUPABASE_PUBLISHABLE_KEY=… swift test` | Linux, Swift 6.4, local Supabase | 11/11 pass with a WebSocket-capable libcurl; with Ubuntu 24.04's libcurl 8.5 the realtime test skips with the reason (10 pass, 1 skip) |
-| `python3 packages/PostcardUI/Examples/test_rules.py` | Linux, Swift 6.4 | 6/6 pass |
+| `python3 packages/PostcardUI/Examples/test_rules.py`; `xcodebuild -scheme PostcardUI test` | Linux Swift 6.4; Xcode 27.1 simulator | 6/6 pass; 6/6 pass |
 | `cd ios && xcodegen generate && xcodebuild … -destination 'generic/platform=iOS Simulator' build` | Xcode 27.1 on macOS 27.0 | Build succeeded |
-| `xcodebuild … test` (PostcardAppTests + PostcardUITests) | iPhone 17 Pro simulator, iOS 27.1 | 25/25 unit, 3/3 UI pass |
-| Same | iPhone Duo simulator, iOS 27.1 | Unit tests pass; UI 1/3: `testComposeOpenSealExplicitSendThenRecipientReadsIt` and `testFailedSendKeepsDraftAndRetryStoresExactlyOnePostcard` fail with "Neither element nor any descendant has keyboard focus" on `message-editor` in the inner-display split layout |
-| PostcardUI package tests via `xcodebuild -scheme PostcardUI` | — | Not run in this pass (form rules run on Linux above) |
+| `xcodebuild … test` (PostcardAppTests + PostcardUITests) | iPhone Duo simulator, iOS 27.1 | 25/25 unit, 3/3 UI pass |
+| Same | iPhone 16 Pro simulator, iOS 18.5 | 25/25 unit, 3/3 UI pass |
 | App in live mode, two accounts against local Supabase | — | Not run: the local stack ran in the Linux container, which the Mac simulator cannot reach |
 | Physical fold in Bitrig's 3D Duo simulator | — | Not run |
 
-Screenshots: `design/screenshots/integration/iphone-flow.jpg` and `iphone-states.jpg`, contact sheets of the UI-test captures from the passing iPhone 17 Pro run.
+Screenshots: `design/screenshots/integration/iphone-flow.jpg` and `iphone-states.jpg`, contact sheets of the UI-test captures from the iOS 18.5 run of the final tree.
+
+Earlier rounds, for the record: before the redesign merge, an iPhone 17 Pro on iOS 27.0 passed 25/25 unit and 3/3 UI tests, and the old composer's UI tests could not focus its message field on the Duo (a test-tap issue on empty editor lines, moot after the redesign).
 
 ## Security review
 
@@ -150,15 +161,15 @@ Scope: RLS, storage policies, SECURITY DEFINER functions, idempotency, logging, 
 
 ## Unresolved blockers
 
-1. **Duo UI tests, 2 of 3 fail** on message-editor keyboard focus in the inner-display split layout. Whether a person can type there by hand is not yet confirmed. Resolve before a Duo demo; the same flows pass on iPhone 17 Pro.
-2. **App UI in live mode is unverified.** The adapter is verified live on Linux; the app has not been run against a backend.
-3. **The hinge** has not been exercised on hardware or in Bitrig's 3D fold simulator with this build.
-4. **iOS below 27.1** is compile-checked through availability gates; no simulator runtime below 27.1 was available.
+1. **App UI in live mode is unverified.** The adapter is verified live on Linux; the app has not been run against a backend.
+2. **The hinge** has not been exercised on hardware or in Bitrig's 3D fold simulator with this build.
+3. **Accessibility of the redesigned compose screen:** fixed-size fonts (no Dynamic Type) and no full VoiceOver pass yet. The UI tests log a non-fatal SwiftUI "Invalid frame dimension" warning while composing.
+4. **Barrat's `PostcardComposerView`** is no longer used by the app (the compose screen is Zubair's `PostcardExperienceView`); decide whether to keep it in `PostcardUI`.
 5. **Hosted Supabase** is not deployed; there is no authorization or credentials for it.
 
 ## Next steps for a live release
 
-1. **Duo focus.** Reproduce the message-editor focus failure on the iPhone Duo simulator by hand, fix it (app or UI package), and get `PostcardUITests` green there. Run the PostcardUI package tests with `xcodebuild -scheme PostcardUI`.
+1. **Accessibility.** Give the compose screen Dynamic Type (relative font sizes) and a VoiceOver pass.
 2. **Mac live run.** Start Supabase on the Mac (Docker Desktop) so the simulator can reach it.
 3. **Local live run.** Create `ios/Config/Local.xcconfig` from `supabase status`. Sign in as `alice@postcard.test` and `bob@postcard.test` on two simulators, then check:
    - an explicit send

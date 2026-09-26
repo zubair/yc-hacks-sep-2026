@@ -24,7 +24,7 @@ Every Duo API the app uses ships in the iOS 27.1 SDK (declared `anyAppleOS 27.1`
 
 Each use is inside `if #available(iOS 27.1, *)` or an `@available(iOS 27.1, *)` declaration. Only `Platform/HingePosture.swift` touches the hinge API.
 
-- **iOS 27.1 on a Duo:** unfolding the device opens the card and folding it seals the card. On the inner display, the composer sits in a split `ArrangementView` beside `DuoComposeStage`, and toolbars use vertical bars.
+- **iOS 27.1 on a Duo:** unfolding the device opens the card and folding it seals the card. The compose screen is the postcard (`PostcardExperienceView`): open, its back is an `ArrangementView` split with the note on one side of the fold and the address on the other; toolbars use vertical bars.
 - **Earlier iOS versions and ordinary iPhones:** the same controller is driven only by the **Open** and **Seal** buttons, with a standard navigation toolbar.
 - **Every device:** folding never sends.
 
@@ -51,7 +51,7 @@ xcodebuild ... test -only-testing:PostcardUITests
 
 To check the button path, swap the destination for an ordinary iPhone, for example `'platform=iOS Simulator,name=iPhone 17 Pro'`.
 
-Latest results (Xcode 27.1, iOS 27.1 simulators): iPhone 17 Pro, 25/25 unit and 3/3 UI tests pass. iPhone Duo, unit tests pass and UI tests pass 1/3; the other two cannot focus the message editor in the inner-display split layout (open issue, see `handoffs/integration.md`).
+Latest results (Xcode 27.1): iPhone Duo on iOS 27.1 and iPhone 16 Pro on iOS 18.5 each pass 25/25 unit and 3/3 UI tests.
 
 | Target | Sources | Covers |
 |---|---|---|
@@ -64,7 +64,7 @@ Bitrig: **File → Open** the `ios/` folder, choose **iPhone Duo**, Run, then us
 
 The app starts in fixture mode when `Config/Local.xcconfig` is absent or the `-forceDemo` launch argument is passed. It uses the in-memory `FixturePostcardService`, and every screen shows the demo label. Nothing leaves the device.
 
-- The app starts signed in as **Alex Rivera** (`@alex`). New drafts come with a bundled sample photo (`DemoPhoto` asset).
+- The app starts signed in as **Alex Rivera** (`@alex`). The first draft is seeded (Cinque Terre photo, destination, recipient Sam Lee), and new demo drafts get the same bundled photo (`SamplePhoto` asset).
 - Flow: **Write** → type `sam` → find → select **Sam Lee** → **Open** (or unfold the Duo) → write a note → **Seal** (or fold) → **Send**. Go back; the inbox lists Sam Lee.
 - The **Demo** menu, in the inbox toolbar, appears only in fixture mode:
   - **View as Sam Lee / View as Alex Rivera** switches accounts, so one device shows both sides. Open Alex's conversation as Sam, then **Read their note**.
@@ -98,7 +98,8 @@ Values flow from `Config/Postcard.xcconfig`, which includes `Local.xcconfig`, to
 ```
 App/            PostcardApp → AppEnvironment (composition root: fixture vs Supabase, demo controls)
                 → RootView (loading | Auth | Main | can't-connect) → NavigationStack: Inbox → Compose | Conversation
-                Screens/ wire PostcardUI views to view models; DuoComposeStage (27.1 inner-display pane)
+                Screens/ PostcardExperienceView (compose: front, fold-spread back, sealed), RecipientSheet,
+                         PostcardOrnaments; Inbox/Conversation/Auth wire PostcardUI views to view models
 Platform/       DevicePosture, HingePosture (the only hinge API use), Haptics, AppConfiguration, DraftStore, PhotoImporter
 Features/       PostcardPresentationController (Duo controller), SessionCoordinator, ComposeViewModel,
                 InboxViewModel (realtime refetch + reconnect), ConversationViewModel (merge by UUID, signed URLs, photo bytes)

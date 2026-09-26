@@ -79,7 +79,7 @@ PostcardConversationView(messages:photoURLs:photoData:photoErrors:isLoading:erro
 PostcardAuthView(isLoading:error:notice:isDemo:onSignIn:onSignUp:)   // onSignIn(email, password); onSignUp(email, password, username, displayName)
 ```
 
-Callbacks are synchronous; the app starts and cancels its own tasks. Views have no Supabase import, network calls, local persistence, hinge listeners, or app-global coordinator. Do not infer 'sent' from the animation finishing. Loading and failure must preserve visible content. Zubair resolves signed photo URLs, downloads photo bytes, and provides state to the views.
+Integration note: the app's compose screen is now Zubair's `PostcardExperienceView` (the screen is the postcard: front, fold-spread back, sealed), built with `PostcardStyle` and app-side ornaments. `PostcardComposerView` remains in `PostcardUI` but the app no longer uses it. Callbacks are synchronous; the app starts and cancels its own tasks. Views have no Supabase import, network calls, local persistence, hinge listeners, or app-global coordinator. Do not infer 'sent' from the animation finishing. Loading and failure must preserve visible content. Zubair resolves signed photo URLs, downloads photo bytes, and provides state to the views.
 
 ## Motion boundary (Pranav owns; Barrat composes)
 

@@ -2,11 +2,11 @@
 
 A photo and a handwritten-feeling note, sent to one person, as a postcard.
 
-Pick someone by their exact username, put a photo on the front, and write on the back. **Opening the card starts writing; closing it seals it.** On the iPhone Duo, that gesture is literal: unfold the device to open the card, fold it to seal. Sending is always a separate, explicit tap, so folding can never send anything. The recipient finds the postcard in their inbox, sees the photo, and flips it over to read the note.
+Pick someone by their exact username, put a photo on the front, and write on the back. **The compose screen is the postcard:** closed, it shows the front; open, the back spreads across the fold with your note on one side and the address on the other; closed again, it is sealed and ready. On the iPhone Duo that gesture is literal: unfold the device to open the card, fold it to seal. Sending is always a separate, explicit tap (Continue), so folding can never send anything. The recipient finds the postcard in their inbox, sees the photo, and flips it over to read the note.
 
-![Compose, open, seal, send, and the recipient reading it (iPhone 17 Pro simulator, fixture mode)](design/screenshots/integration/iphone-flow.jpg)
+![The front, the back with note and address, sealed and ready, sent, and the recipient reading it](design/screenshots/integration/iphone-flow.jpg)
 
-<sub>Front with recipient and photo · writing on the back · sealed · sent (demo) · the recipient reading it. Captured by the UI test suite from the integrated build.</sub>
+<sub>Front · open: note and address · sealed, ready to send · sent (demo) · the recipient reading it. Captured by the UI test suite from the integrated build (iPhone simulator, iOS 18.5, fixture mode).</sub>
 
 ## Why it is built this way
 
@@ -19,18 +19,17 @@ Pick someone by their exact username, put a photo on the front, and write on the
 
 Without backend configuration the app runs in **fixture mode**: an in-memory service with two demo accounts, clearly labeled on every screen. Nothing leaves the device.
 
-1. `cd ios && xcodegen generate && open Postcard.xcodeproj`, then run on an iPhone simulator or the iPhone Duo simulator (Xcode 27.1).
-2. You are **Alex Rivera** with an empty inbox. Tap **Write a postcard**.
-3. Type `sam`, tap search, and choose **Sam Lee**. A sample photo is already on the front.
-4. **Open your postcard** (or unfold the Duo) and write a note.
-5. **Close & seal** (or fold the Duo). Nothing has been sent.
-6. **Preview sending**. The composer confirms the postcard is stored in the demo inbox.
-7. Go back: the inbox now lists Sam Lee.
-8. **Demo → View as Sam Lee**, open Alex Rivera's postcard, and tap **Read their note**.
+1. `cd ios && xcodegen generate && open Postcard.xcodeproj`, then run on the iPhone Duo simulator or any iPhone simulator (Xcode 27.1).
+2. You are **Alex Rivera** with an empty inbox. Tap **Write a postcard**. The first draft is ready: a Cinque Terre photo, addressed to **Sam Lee**.
+3. **Open to write** (or unfold the Duo). The back spreads across the fold: write a note on the left; the address, stamp, and postmark are on the right. **Address** changes the recipient by exact username.
+4. **Prepare to send** (or fold the Duo). The card is sealed. Nothing has been sent.
+5. **Continue**. Only this tap sends; the card shows it was sent (simulated in the demo).
+6. Go back: the inbox now lists Sam Lee.
+7. **Demo → View as Sam Lee**, open Alex Rivera's postcard, and tap **Read their note**.
 
-The Demo menu also has **Fail the next send** (shows the error; Try again stores the postcard exactly once) and **Simulate offline** (the inbox shows a retryable offline state).
+The Demo menu also has **Fail the next send** (shows the error; Try again stores the postcard exactly once) and **Simulate offline** (the inbox shows a retryable offline state). Launch arguments `--compose` and `--open` jump straight to the composer or its open back, for demos and screenshots.
 
-![Sender inbox, recipient view, a failed send with retry, and the offline inbox](design/screenshots/integration/iphone-states.jpg)
+![Sender inbox, the recipient's postcard, a failed send with Try again, and the offline inbox](design/screenshots/integration/iphone-states.jpg)
 
 ## Verification
 
@@ -38,15 +37,14 @@ Every row is an actual run from this integration. Fixture success is not present
 
 | Suite | Where it ran | Result |
 |---|---|---|
-| Backend end-to-end (`tests/backend`): auth, RLS, storage, RPCs, idempotency and concurrency, realtime, sent-photo immutability | Local Supabase (CLI 2.118.0) rebuilt from scratch with all six migrations | **19/19 pass** |
-| `PostcardServices` fixture, recorded wire-contract, and **live** tests: the real Swift Supabase adapter against the real local backend | Linux, Swift 6.4 | **11/11 pass** (realtime needs a libcurl with WebSockets; it skips with a reason on stock Ubuntu libcurl) |
-| `PostcardCore` | Linux, Swift 6.4 | **1/1 pass** |
-| `PostcardUI` form rules, compiled against the real Core models | Linux, Swift 6.4 | **6/6 pass** |
-| App build: all four packages plus the app, Swift 6 strict concurrency | Xcode 27.1, iOS Simulator | **Succeeds** |
-| `PostcardAppTests` (presentation controller, compose, platform, integration regressions) | iPhone 17 Pro simulator, iOS 27.1 | **25/25 pass** |
-| `PostcardUITests`: compose → open → seal → send → recipient reads; failed send → retry stores one postcard; offline → retry → recovery | iPhone 17 Pro simulator, iOS 27.1 | **3/3 pass** |
-| `PostcardAppTests` | iPhone Duo simulator, iOS 27.1 | **Pass** |
-| `PostcardUITests` | iPhone Duo simulator, iOS 27.1 | **1/3 pass.** On the Duo's inner-display split layout the UI test cannot give the message editor keyboard focus. Open issue, see Known limitations. |
+| Backend end-to-end (`tests/backend`): auth, RLS, storage, RPCs, idempotency and concurrency, realtime, and 9 hardening regressions (write-once photos, delete races, anonymous realtime) | Local Supabase (CLI 2.118.0) rebuilt from scratch with all migrations | **27/27 pass** |
+| `PostcardServices`: fixture, recorded wire contract, and **live** tests of the real Swift Supabase adapter against the hardened local backend | Linux, Swift 6.4 | **11/11 pass** (realtime needs a libcurl with WebSockets; it skips with a reason on stock Ubuntu libcurl) |
+| `PostcardCore` | Linux, Swift 6.4, and Xcode 27.1 | **1/1 pass** |
+| `PostcardUI` package tests (form rules) | Xcode 27.1 simulator, and Linux against the real Core models | **6/6 pass** |
+| App build: all four packages plus the app, Swift 6 strict concurrency, iOS 17.0 target | Xcode 27.1 | **Succeeds** |
+| `PostcardAppTests`: presentation controller (hinge debounce, seal once, suppression), compose (folding never sends, one send per submission, retry keeps the draft id), platform, integration regressions | iPhone Duo simulator, iOS 27.1 | **25/25 pass** |
+| `PostcardUITests`: compose → open → write → seal → Continue → the recipient reads it; failed send → Try again stores exactly one postcard; offline → retry → recovery | iPhone Duo simulator, iOS 27.1 | **3/3 pass** |
+| Same two suites on an ordinary iPhone below the Duo gate (Open and Seal buttons, stacked back, standard toolbar) | iPhone 16 Pro simulator, **iOS 18.5** | **25/25 and 3/3 pass** |
 | App in live mode against a backend, two accounts | — | **Not run.** The adapter is verified live on Linux; the app UI in live mode is not. |
 | Physical fold on hardware or Bitrig's 3D simulator | — | **Not run.** The hinge path is covered by controller tests. |
 | Hosted Supabase | — | **Not deployed** (needs separate authorization) |
@@ -60,7 +58,7 @@ Requirements: Xcode 27.1 (iOS 27.1 SDK; Xcode 27.0 cannot compile the Duo APIs),
 ```sh
 cd ios && xcodegen generate
 xcodebuild -project Postcard.xcodeproj -scheme Postcard \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO test
+  -destination 'platform=iOS Simulator,name=iPhone Duo' CODE_SIGNING_ALLOWED=NO test
 ```
 
 If Xcode 27.1 is not the selected Xcode, prefix commands with `DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer`.
@@ -116,10 +114,12 @@ packages/  (Swift Package Manager, Swift 6, iOS 17+)
   PostcardMotion     PostcardFlipContainer, PostcardSealEffect (Reduce Motion)  no dependencies
   PostcardServices   PostcardService protocol,                                   → Core, supabase-swift 2.55.2
                      SupabasePostcardService, FixturePostcardService
-  PostcardUI         Composer, Inbox, Conversation, Auth screens                 → Core, Motion
+  PostcardUI         Inbox, Conversation, Auth screens, visual system            → Core, Motion
+                     (its PostcardComposerView is superseded in the app by PostcardExperienceView)
 
 ios/  (app, iOS 17.0 target, Duo APIs gated on iOS 27.1)
   App/        AppEnvironment (fixture | Supabase, demo controls) → RootView → Inbox → Compose | Conversation
+              Compose = PostcardExperienceView: front · back spread across the fold (ArrangementView) · sealed
   Features/   PostcardPresentationController   front → writing → sealed → sending → sent, never sends
               ComposeViewModel                 draft persistence, lookup, photo import, the only send path
               InboxViewModel, ConversationViewModel, SessionCoordinator
@@ -137,7 +137,7 @@ supabase/  (live mode)
 
 - Every table uses row-level security. Clients can only read their own conversations, and they cannot insert, edit, or delete messages directly. All `SECURITY DEFINER` functions pin `search_path = ''` and are granted only to authenticated users.
 - `send_postcard` derives the sender from `auth.uid()`, checks that the photo path belongs to the caller and the draft, validates lengths, and creates the conversation and message atomically. Concurrent retries with the same draft id return the original message; reusing an id with different content is rejected.
-- An integration security review found that a signed upload URL issued before sending could replace a photo after it was sent. It is fixed by a storage trigger that refuses changes to any sent photo, for every role (`supabase/migrations/20260926000500_protect_sent_photos.sql`), and covered by an end-to-end test that reproduces the attack. Realtime now publishes inserts only (`…000600`).
+- Security reviews found that a signed upload URL issued before sending could replace a photo after it was sent. `supabase/migrations/20260926000500_hardening.sql` makes every photo write-once below the Storage API (a trigger freezes content and path for every role), keeps referenced photos from being deleted even by the service role or the orphan cleanup, locks the photo row inside `send_postcard`, publishes realtime inserts only, and stops anonymous realtime timing leaks. Each fix has a regression test.
 - Remaining low-severity notes, with owners and next steps, are in [handoffs/integration.md](handoffs/integration.md#security-review).
 
 ## Repository map
@@ -157,18 +157,17 @@ supabase/  (live mode)
 
 | Owner | Area | Delivered |
 |---|---|---|
-| Zafar | `supabase/`, `backend/`, `tests/backend/` | Schema, RLS and storage policies, RPCs, realtime, end-to-end tests, wire fixtures |
+| Zafar | `supabase/`, `backend/`, `tests/backend/` | Schema, RLS and storage policies, RPCs, realtime, hardening from an adversarial review, end-to-end tests, wire fixtures |
 | Pranav | `packages/PostcardCore`, `PostcardServices`, `PostcardMotion` | Shared models, Supabase adapter, fixture service, flip and seal motion |
 | Barrat | `packages/PostcardUI`, `design/` | Screens, visual system, accessibility, motion choreography |
-| Zubair | `ios/` | App shell, Duo presentation controller, view models, draft persistence, photo import, Duo layouts |
+| Zubair | `ios/` | App shell, the postcard compose experience, Duo presentation controller, view models, draft persistence, photo import |
 
 Integration merged the four workstreams, replaced the app's local stubs with the real packages, gated the Duo APIs, fixed the defects found in review, and hardened the backend. The details are in [handoffs/integration.md](handoffs/integration.md).
 
 ## Known limitations
 
-- **Duo inner display UI test:** on the iPhone Duo simulator's split layout, the UI test cannot give the message editor keyboard focus (2 of 3 UI tests fail there; the same tests pass on iPhone 17 Pro). Whether a person can type there by hand has not been confirmed, and this should be resolved before a Duo demo.
 - **Not yet verified:** a physical fold on hardware or in Bitrig's 3D simulator, the app UI in live mode against a backend, and any hosted deployment.
-- **The app runs on iOS 17+, but was only run on the iOS 27.1 simulator.** Below 27.1 it is compile-checked through availability gates, not run.
+- **Accessibility of the new compose screen:** it uses fixed-size display fonts (including a script face for the note), so it does not yet scale with Dynamic Type, and it has not had a full VoiceOver pass. The inbox, conversation, and sign-in screens use the audited `PostcardUI` components.
 - **Out of scope for v1:** push notifications, read receipts, printing, payments, and public links. A conversation shows the newest 50 postcards, with no pagination UI.
-- **Photos:** the server checks bucket size and declared type, not image bytes. The client converts to JPEG and enforces 10 MB and 20 megapixels.
+- **Photos:** the server enforces bucket size and type and makes photos write-once, but it does not inspect image bytes. The client converts to JPEG and enforces 10 MB and 20 megapixels.
 - **The fixture has two accounts** (Alex and Sam) and keeps messages in memory. Demo messages reset on relaunch; the draft persists.
