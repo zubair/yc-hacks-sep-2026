@@ -5,13 +5,11 @@ import PostcardUI
 
 struct ComposeScreen: View {
   @Environment(AppEnvironment.self) private var env
-  @Environment(\.horizontalSizeClass) private var widthClass
   @State private var pickerItem: PhotosPickerItem?
   @State private var showingPicker = false
 
   var body: some View {
-    composeToolbar(stage)
-      .background(PostcardStyle.paper)
+    composeToolbar(PostcardExperienceView(onChoosePhoto: { showingPicker = true }))
       .photosPicker(isPresented: $showingPicker, selection: $pickerItem, matching: .images)
       .onChange(of: showingPicker) { _, showing in env.presentation.setSuppressed(showing, reason: .modal) }
       .onChange(of: pickerItem) { _, item in
@@ -21,51 +19,14 @@ struct ComposeScreen: View {
           pickerItem = nil
         }
       }
-      .navigationTitle(env.presentation.state == .sent ? "Sent" : "New postcard")
+      .navigationTitle("")
       .navigationBarTitleDisplayMode(.inline)
+      .toolbarBackground(.hidden, for: .navigationBar)
       .sensoryFeedback(.success, trigger: env.presentation.state == .sent)
-  }
-
-  /// Inner Duo display: composer and the standing postcard share one arrangement. Split adapts around an
-  /// active fold: book pose puts them side by side, table pose puts the card above and controls below.
-  /// Everywhere else (older iOS, ordinary iPhones, compact width) the composer stands alone.
-  @ViewBuilder
-  private var stage: some View {
-    if #available(iOS 27.1, *) {
-      if widthClass == .regular {
-        ArrangementView {
-          composer
-        } secondary: {
-          DuoComposeStage()
-        }
-        .arrangementViewStyle(.split)
-      } else {
-        composer
+      .onAppear {
+        // `--open` launch argument starts on the back spread (screenshot automation on simulators without a hinge).
+        if ProcessInfo.processInfo.arguments.contains("--open") { env.presentation.open(source: .system) }
       }
-    } else {
-      composer
-    }
-  }
-
-  private var composer: some View {
-    @Bindable var compose = env.compose
-    return PostcardComposerView(
-      draft: $compose.draft,
-      state: env.presentation.state,
-      error: compose.errorMessage,
-      recipientLookupResult: compose.lookupResult,
-      isLookingUpRecipient: compose.isLookingUp,
-      recipientLookupMessage: compose.lookupMessage,
-      isDemo: env.mode == .fixture,
-      onLookupRecipient: { username in Task { await compose.lookup(username: username) } },
-      onSelectRecipient: { compose.select(recipient: $0) },
-      onChoosePhoto: { showingPicker = true },
-      onOpen: { env.presentation.open(source: .manual) },
-      onSeal: { env.presentation.seal(source: .manual) },
-      onSend: { Task { await compose.send() } },
-      onRetry: { Task { await compose.retry() } }
-    )
-    .disabled(compose.isSending)
   }
 
   // MARK: Toolbar — Duo vertical bars on iOS 27.1, a standard navigation bar elsewhere.
@@ -85,22 +46,33 @@ struct ComposeScreen: View {
     ToolbarItem(placement: .primaryAction) { sendButton }
       .axisBehavior(.automatic)
       .visibilityPriority(.high)
-    ToolbarItem(placement: .secondaryAction) { openSealButton }
-    ToolbarOverflowMenu { draftItems }
+    ToolbarItem(placement: .secondaryAction) { photoButton }
+    ToolbarOverflowMenu {
+      openSealButton
+      draftItems
+    }
   }
 
   @ToolbarContentBuilder
   private var classicToolbar: some ToolbarContent {
     ToolbarItem(placement: .primaryAction) { sendButton }
-    ToolbarItem(placement: .secondaryAction) { openSealButton }
+    ToolbarItem(placement: .secondaryAction) { photoButton }
     ToolbarItem(placement: .secondaryAction) {
-      Menu("Draft", systemImage: "ellipsis.circle") { draftItems }
+      Menu("More", systemImage: "ellipsis.circle") {
+        openSealButton
+        draftItems
+      }
     }
   }
 
   private var sendButton: some View {
     Button("Send", systemImage: "paperplane") { Task { await env.compose.send() } }
       .disabled(!env.compose.canSend)
+  }
+
+  private var photoButton: some View {
+    Button("Photo", systemImage: "photo") { showingPicker = true }
+      .disabled(env.compose.isSending)
   }
 
   @ViewBuilder
