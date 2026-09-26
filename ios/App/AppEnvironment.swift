@@ -33,6 +33,9 @@ final class AppEnvironment {
     if let url = configuration.supabaseURL, let key = configuration.publishableKey {
       return AppEnvironment(mode: .supabase, service: SupabasePostcardService(url: url, publishableKey: key), draftStore: draftStore, haptics: SystemHaptics())
     }
-    return AppEnvironment(mode: .fixture, service: FixturePostcardService(scenario: .standard), draftStore: draftStore, haptics: SystemHaptics())
+    // Demo mode skips the sign-in screen: the fixture session starts as Alice so the Duo flow is one tap away.
+    // Live mode (Local.xcconfig present) still goes through PostcardAuthView.
+    let fixture = FixturePostcardService(scenario: .standard, signedInAs: FixturePostcardService.alice)
+    return AppEnvironment(mode: .fixture, service: fixture, draftStore: draftStore, haptics: SystemHaptics())
   }
 }

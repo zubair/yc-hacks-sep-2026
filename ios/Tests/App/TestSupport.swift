@@ -21,10 +21,16 @@ final class MemoryDraftStore: DraftStoring, @unchecked Sendable {
 actor SpyPostcardService: PostcardService {
   var sendCalls: [PostcardDraft] = []
   var failNextSend: PostcardServiceError?
+  var stubMessages: [PostcardMessage] = []
+  var stubPhotoURL = URL(fileURLWithPath: "/dev/null")
   var profile = PostcardProfile(id: UUID(), username: "tester", displayName: "Tester")
   var recipient = PostcardProfile(id: UUID(), username: "friend", displayName: "Friend")
 
   func setFailNextSend(_ error: PostcardServiceError?) { failNextSend = error }
+  func setPhotoFixture(messages: [PostcardMessage], url: URL) {
+    stubMessages = messages
+    stubPhotoURL = url
+  }
 
   func currentProfile() async throws -> PostcardProfile? { profile }
   func signUp(email: String, password: String, username: String, displayName: String) async throws {}
@@ -32,7 +38,7 @@ actor SpyPostcardService: PostcardService {
   func signOut() async throws {}
   func lookupRecipient(username: String) async throws -> PostcardProfile? { username == recipient.username ? recipient : nil }
   func conversations() async throws -> [PostcardConversation] { [] }
-  func messages(conversationId: UUID, before: Date?, limit: Int) async throws -> [PostcardMessage] { [] }
+  func messages(conversationId: UUID, before: Date?, limit: Int) async throws -> [PostcardMessage] { stubMessages }
   func send(draft: PostcardDraft) async throws -> PostcardMessage {
     sendCalls.append(draft)
     if let failNextSend {
@@ -41,7 +47,7 @@ actor SpyPostcardService: PostcardService {
     }
     return PostcardMessage(id: UUID(), conversationId: UUID(), senderId: profile.id, recipientId: draft.recipientId ?? UUID(), senderName: draft.senderName, recipientName: draft.recipientName, destination: draft.destination, message: draft.message, photoPath: "p/\(draft.id)/photo.jpg", createdAt: Date())
   }
-  func photoURL(path: String) async throws -> URL { URL(fileURLWithPath: "/dev/null") }
+  func photoURL(path: String) async throws -> URL { stubPhotoURL }
   func conversationUpdates() async throws -> AsyncThrowingStream<UUID, Error> { AsyncThrowingStream { $0.finish() } }
 }
 

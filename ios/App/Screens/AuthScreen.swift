@@ -8,8 +8,9 @@ struct AuthScreen: View {
     NavigationStack {
       PostcardAuthView(
         isLoading: env.session.isBusy,
-        errorMessage: env.session.errorMessage,
-        infoMessage: env.session.infoMessage ?? (env.mode == .fixture ? "Demo accounts: alice@demo, bob@demo, eve@demo · any password" : nil),
+        error: env.session.errorMessage,
+        notice: env.session.infoMessage ?? (env.mode == .fixture ? "Demo accounts: alice@demo.com, bob@demo.com, eve@demo.com · any password" : nil),
+        isDemo: env.mode == .fixture,
         onSignIn: { email, password in Task { await env.session.signIn(email: email, password: password) } },
         onSignUp: { email, password, username, displayName in
           Task { await env.session.signUp(email: email, password: password, username: username, displayName: displayName) }

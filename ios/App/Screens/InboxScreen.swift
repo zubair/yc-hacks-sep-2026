@@ -10,10 +10,11 @@ struct InboxScreen: View {
     PostcardInboxView(
       conversations: env.inbox.conversations,
       isLoading: env.inbox.isLoading,
-      errorMessage: env.inbox.errorMessage,
+      error: env.inbox.errorMessage,
+      isDemo: env.mode == .fixture,
       onSelect: { path.append(.conversation($0)) },
       onCompose: { env.compose.startNewDraft(); path.append(.compose) },
-      onRefresh: { await env.inbox.load() }
+      onRefresh: { Task { await env.inbox.load() } }
     )
     .navigationTitle("Postcards")
     .toolbar {

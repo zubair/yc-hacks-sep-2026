@@ -7,6 +7,8 @@ import PostcardCore
 final class ConversationViewModel {
   private(set) var messages: [PostcardMessage] = []
   private(set) var photoURLs: [UUID: URL] = [:]
+  private(set) var photoData: [UUID: Data] = [:]
+  private(set) var photoErrors: [UUID: String] = [:]
   private(set) var isLoading = false
   var errorMessage: String?
 
@@ -53,12 +55,39 @@ final class ConversationViewModel {
     messages = byId.values.sorted { $0.createdAt > $1.createdAt }
   }
 
+  func retryPhoto(id: UUID) async {
+    guard let message = messages.first(where: { $0.id == id }) else { return }
+    await resolvePhoto(for: message)
+  }
+
   /// Signed URLs expire (≤ 5 min), so re-resolve on every load rather than caching forever.
   private func resolvePhotos() async {
     for message in messages {
-      if let url = try? await service.photoURL(path: message.photoPath) {
-        photoURLs[message.id] = url
+      await resolvePhoto(for: message)
+    }
+  }
+
+  private func resolvePhoto(for message: PostcardMessage) async {
+    do {
+      let url = try await service.photoURL(path: message.photoPath)
+      photoURLs[message.id] = url
+      let data: Data
+      if url.isFileURL {
+        data = try Data(contentsOf: url)
+      } else {
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (downloaded, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+          throw PostcardServiceError.server("The photograph couldn't be loaded.")
+        }
+        data = downloaded
       }
+      photoData[message.id] = data
+      photoErrors[message.id] = nil
+    } catch {
+      photoURLs[message.id] = nil
+      photoErrors[message.id] = UserFacingError.describe(error)
     }
   }
 }

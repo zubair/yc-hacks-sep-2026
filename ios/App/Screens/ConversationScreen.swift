@@ -14,14 +14,18 @@ struct ConversationScreen: View {
         PostcardConversationView(
           messages: model.messages,
           photoURLs: model.photoURLs,
-          currentUserId: env.session.profile?.id,
+          photoData: model.photoData,
+          photoErrors: model.photoErrors,
           isLoading: model.isLoading,
-          errorMessage: model.errorMessage,
+          error: model.errorMessage,
+          isDemo: env.mode == .fixture,
+          title: conversation.peer.displayName,
           onReply: {
             env.compose.startNewDraft(recipient: conversation.peer)
             path.append(.compose)
           },
-          onRefresh: { await model.load() }
+          onRefresh: { Task { await model.load() } },
+          onRetryPhoto: { id in Task { await model.retryPhoto(id: id) } }
         )
       } else {
         ProgressView()

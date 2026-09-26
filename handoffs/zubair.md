@@ -4,9 +4,9 @@
 
 **Implemented and building.** Native app shell, Duo presentation controller, session/compose/inbox/conversation view models, draft persistence, PhotosPicker + JPEG validation, configuration, and unit tests are on this branch under `ios/`. The app builds with Xcode 27.1 / iOS 27.1 SDK and runs on the iPhone Duo simulator in Bitrig in credential-free demo mode.
 
-**Follow-up verification (2026-09-26).** The Bitrig project build and `xcodebuild test -project Postcard.xcodeproj -scheme Postcard -destination 'platform=iOS Simulator,name=iPhone Duo' CODE_SIGNING_ALLOWED=NO -quiet` both exited successfully against the local excluded contract packages. The hinge controller now applies a debounced final close even when no later event arrives; manual actions cancel stale deferred events. Compose enables Send only after opening, keeps the submitted draft snapshot stable during the service call, and disables draft controls while sending. Added focused tests for the deferred close and the front-state Send guard (20 app tests total). SDK declaration inspection confirmed `onHingeChange` and `DeviceHinge` in the installed iOS 27.1 SwiftUICore interface. A fresh screenshot could not be captured during this follow-up because Bitrig's simulator inspection returned “Failed to read the simulator state”; `simctl` also reported a CoreSimulatorService connection failure. This does not affect the successful compile/test result.
+**Follow-up verification (2026-09-26).** Barrat's `team/barrat` branch is merged and the app now compiles against its real `PostcardUI` package. The Bitrig project build passed. `xcodebuild test -project Postcard.xcodeproj -scheme Postcard -destination 'platform=iOS Simulator,name=iPhone Duo' CODE_SIGNING_ALLOWED=NO` passed **21 app tests, 0 failures**, verified from `/private/tmp/postcard-zubair-barrat.xcresult`. Barrat's isolated form-rule suite passed **5 tests, 0 failures**. The hinge controller applies a debounced final close even when no later event arrives; manual actions cancel stale deferred events. Compose enables Send only after opening, keeps the submitted draft snapshot stable during the service call, and disables draft controls while sending. Conversation photos are downloaded by the app and passed as bytes to Barrat's view, with per-photo retry. SDK declaration inspection confirmed `onHingeChange` and `DeviceHinge` in the installed iOS 27.1 SwiftUICore interface. The Bitrig simulator inspection plugin could not read the running UI, but `simctl` captured the integrated auth screen at `/private/tmp/postcard-barrat-auth.png`.
 
-**Blocked on dependencies (by design).** `ios/project.yml` references `../packages/PostcardCore|PostcardServices|PostcardMotion|PostcardUI`. Those packages are owned by Pranav and Barrat and had not landed on their branches at the time of this handoff (both branches still contain only the assignment). To build and test my layer I used **local, uncommitted stub packages** that implement `docs/CONTRACTS.md` literally (same type names, protocol, initializers). They are excluded from git and are not a competing implementation. The integration agent should merge Pranav then Barrat, delete any local stubs, and rebuild.
+**Remaining dependency.** `ios/project.yml` references `../packages/PostcardCore|PostcardServices|PostcardMotion|PostcardUI`. `PostcardUI` is now tracked from Barrat. Core, Services, and Motion are still local excluded contract stubs because Pranav's branch has not landed here. They are not competing production implementations. The integration agent must merge Pranav, remove the local stubs, and rebuild. The old local PostcardUI stub was preserved at `/private/tmp/postcardui-contract-stub-ff6f7ca` before the merge.
 
 ## Source
 
@@ -39,11 +39,12 @@ ios/README.md                       toolchain, build/run, demo/real mode, archit
 ## Public API / integration surface
 
 - `AppEnvironment.bootstrap()` chooses `SupabasePostcardService(url:publishableKey:)` when config is present, else `FixturePostcardService(scenario: .standard)`. Both come from `PostcardServices`.
-- Views are consumed exactly as the contract lists them. Initializers I coded against (Barrat: confirm or I adapt in one file each):
-  - `PostcardComposerView(draft: Binding<PostcardDraft>, presentation:, errorMessage:, recipientLookupResult:, isLookingUpRecipient:, onLookupRecipient:(String)->Void, onSelectRecipient:(PostcardProfile)->Void, onChoosePhoto:, onOpen:, onSeal:, onSend:, onRetry:)`
-  - `PostcardInboxView(conversations:, isLoading:, errorMessage:, onSelect:(PostcardConversation)->Void, onCompose:, onRefresh: () async -> Void)`
-  - `PostcardConversationView(messages:, photoURLs: [UUID: URL], currentUserId: UUID?, isLoading:, errorMessage:, onReply:, onRefresh: () async -> Void)` — `currentUserId` is an additive input I need for sent/received alignment.
-  - `PostcardAuthView(isLoading:, errorMessage:, infoMessage: String?, onSignIn:(email, password), onSignUp:(email, password, username, displayName))` — `infoMessage` carries the email-confirmation state.
+- Views are wired to Barrat's actual public initializers:
+  - `PostcardComposerView(draft:, state:, error:, recipientLookupResult:, isLookingUpRecipient:, isDemo:, onLookupRecipient:, onSelectRecipient:, onChoosePhoto:, onOpen:, onSeal:, onSend:, onRetry:)`
+  - `PostcardInboxView(conversations:, isLoading:, error:, isDemo:, onSelect:, onCompose:, onRefresh:)`
+  - `PostcardConversationView(messages:, photoURLs:, photoData:, photoErrors:, isLoading:, error:, isDemo:, title:, onReply:, onRefresh:, onRetryPhoto:)`
+  - `PostcardAuthView(isLoading:, error:, notice:, isDemo:, onSignIn:, onSignUp:)`
+  - Barrat's refresh callbacks are synchronous, so the app launches a Task in each callback. The app resolves signed URLs and loads photo bytes; the view never performs networking.
 - Motion: not called from app code; Barrat's views compose `PostcardFlipContainer`/`PostcardSealEffect`. The app passes `PostcardPresentationState` only.
 
 ## Duo controller (`PostcardPresentationController`)
@@ -75,11 +76,11 @@ Device APIs actually compiled and exercised: `onHingeChange`/`DeviceHinge` (stat
 
 ### Tests
 
-`xcodebuild test` on iPhone Duo (iOS 27.1 simulator), 2026-09-26: **18 tests, 0 failures**.
+`xcodebuild test` on iPhone Duo (iOS 27.1 simulator), latest integration run: **21 tests, 0 failures**.
 
-- `PostcardPresentationControllerTests` (7): initial posture baseline; open→writing→sealed with seal-once on repeated closes; angle jitter ignored; rapid flap debounced then re-synced; suppression while sending and while a modal is up, with quick reopen applied after; manual fallback mirrors hinge and respects suppression; send lifecycle (no double `beginSending`, sent cannot reopen, reset to front).
-- `ComposeViewModelTests` (6): folding and manual open/seal never call `send`; explicit send sends exactly once per submission and rotates the draft id afterwards; failed send keeps the draft and retries with the same id; validation blocks send without touching the service; recipient lookup binds into the draft; draft restores from the store.
-- `PlatformTests` (5): file draft store round-trips photo bytes; photo importer downscales a 24 MP image under 20 MP and 10 MB (found and fixed a screen-scale bug here: the renderer now uses scale 1); rejects non-images; configuration falls back to fixture mode when empty; posture mapping.
+- `PostcardPresentationControllerTests` (8): initial posture baseline; open→writing→sealed with seal-once on repeated closes; angle jitter ignored; rapid flap and deferred close; suppression while sending and while a modal is up; manual fallback; send lifecycle.
+- `ComposeViewModelTests` (7): folding and manual open/seal never call `send`; explicit send once per submission; failed send keeps the same draft id for retry; validation and front-state send guard; recipient lookup; draft restoration.
+- `PlatformTests` (6): draft round-trip with photo bytes; photo downscaling and garbage rejection; fixture configuration; posture mapping; conversation photo loading with retry error preserving the visible photo.
 
 Not covered by automation: relaunch persistence on device (manual: draft survives kill/relaunch in the Duo simulator), realtime reconnect against a real adapter, UI screenshots.
 
@@ -90,28 +91,26 @@ Not covered by automation: relaunch persistence on device (manual: draft survive
 | `packages/PostcardCore` (Pranav) | not on `team/pranav` (assignment only, `origin/team/pranav`) | local contract stub |
 | `packages/PostcardServices` (Pranav) | not landed | local stub: full `FixturePostcardService` (idempotent send, `.sendFailsOnce`/`.offline` scenarios, auto-reply for realtime), `SupabasePostcardService` that throws a clear "not integrated" error |
 | `packages/PostcardMotion` (Pranav) | not landed | local stub flip/seal |
-| `packages/PostcardUI` (Barrat) | not on `team/barrat` (assignment only) | local stub views with the initializers listed above |
+| `packages/PostcardUI` (Barrat) | merged from `origin/team/barrat` | real package; integrated app build and 21 app tests passed; Barrat's 5 form-rule tests passed |
 | Backend (Zafar) | `origin/team/zafar` @ fixtures + migrations present | wire fixtures used to shape the fixture service; live mode untested (no adapter yet) |
 
 ## Unresolved blockers
 
-1. No full-app build is possible from this branch alone until the four packages exist at `packages/`. I do not claim otherwise.
+1. A clean checkout still needs Pranav's three packages. The local build used excluded contract stubs for Core, Services, and Motion. I do not claim live service integration.
 2. Live Supabase mode is unverified: the adapter is Pranav's. Configuration plumbing and mode switch are in place.
 3. Realtime reconnect was exercised only against the fixture stream (auto-reply after send; stream cancellation on screen exit). Real reconnect behaviour depends on the adapter.
-4. Screenshots of compose → open → seal → send were taken manually in Bitrig; there is no UI-test automation yet.
+4. The integrated auth screen was captured on iPhone Duo at `/private/tmp/postcard-barrat-auth.png`. The Bitrig simulator inspection plugin returned “Failed to read the simulator state” three times, so compose/seal/send screenshots were not recaptured in this follow-up.
 
 ## Proposed contract changes
 
-1. `PostcardConversationView` needs `currentUserId: UUID?` (additive) to align sent vs received cards.
-2. `PostcardAuthView` needs `infoMessage: String?` (additive) for the email-confirmation state.
-3. Inbox/Conversation `onRefresh` should be `() async -> Void` so it can back `.refreshable`.
-4. Agree with Zafar's proposal that a photo is required to send; the app already blocks Send without one.
-5. App deployment target is iOS 27.1 (packages remain iOS 17). Rationale in `ios/README.md`; reversible by gating `HingePosture.swift` and the toolbar modifiers.
+1. Barrat's additive `photoData`, `photoErrors`, `onRetryPhoto`, `notice`, and `isDemo` inputs are now wired. The shared contract should be updated during final integration; no shared contract file was edited here.
+2. Agree with Zafar's proposal that a photo is required to send; the app already blocks Send without one.
+3. App deployment target is iOS 27.1 (packages remain iOS 17). Rationale in `ios/README.md`; reversible by gating `HingePosture.swift` and the toolbar modifiers.
 
 ## Integration steps
 
-1. Merge `team/pranav` and `team/barrat` first so `packages/` exists; then merge this branch.
-2. If Barrat's initializers differ from the list above, adjust only `ios/App/Screens/*.swift` (one call site each).
+1. Merge `team/pranav` so Core, Services, and Motion become tracked production packages; remove the excluded local stubs and rebuild. Barrat is already merged into this branch.
+2. Verify Pranav's concrete service and motion initializers against the app and UI call sites.
 3. `cd ios && xcodegen generate && xcodebuild … build && … test` with Xcode 27.1.
 4. Demo: run on iPhone Duo in Bitrig, sign in as `alice@demo`, Write → look up `bob` → Photo → fold open/close (or Open/Seal) → Send → watch the inbox update ~4 s later.
 5. Real mode: `Config/Local.xcconfig` from Zafar's `supabase status`; never a service-role key.

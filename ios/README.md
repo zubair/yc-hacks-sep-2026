@@ -11,7 +11,7 @@ Native SwiftUI shell, Duo hinge controller, view models, persistence, and wiring
 | Generator | XcodeGen 2.44 from `ios/project.yml` |
 | Bitrig | 0.26.1, opens `ios/` in place and builds `Postcard.xcodeproj`; its Duo simulator has the Fold controls |
 
-Duo APIs compiled and exercised in this target: `onHingeChange` / `DeviceHinge` (status + angle), `ToolbarItem.axisBehavior`, `visibilityPriority`, `ToolbarOverflowMenu`. Layout is standard `NavigationStack` + toolbars, so bars go vertical on the outer display for free. No hinge API is invented; only `Platform/HingePosture.swift` touches it.
+Duo APIs compiled in this target: `onHingeChange` / `DeviceHinge` (status + angle), `ToolbarItem.axisBehavior`, `visibilityPriority`, `ToolbarOverflowMenu`. The controller's posture behavior is covered by simulator unit tests; a physical hinge was not exercised. Layout is standard `NavigationStack` + toolbars, so bars go vertical on the outer display. Only `Platform/HingePosture.swift` touches the native hinge API.
 
 **Deployment target decision.** Packages stay at iOS 17 per the contract. The app target is **iOS 27.1** because the product is a Duo launch app and the hinge, vertical-bar, and overflow APIs are 27.1-only; this removes every availability gate from app code. Lowering it later means gating `HingePosture.swift` and the toolbar modifiers with `#available(iOS 27.1, *)`; nothing else depends on 27.1.
 
@@ -24,24 +24,26 @@ export DEVELOPER_DIR=$HOME/Downloads/Xcode.app/Contents/Developer   # only if 27
 xcodebuild -project Postcard.xcodeproj -scheme Postcard -sdk iphonesimulator \
   -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -project Postcard.xcodeproj -scheme Postcard \
-  -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO test
+  -destination 'platform=iOS Simulator,name=iPhone Duo' CODE_SIGNING_ALLOWED=NO test
 ```
 
 Bitrig: **File → Open** the `ios/` folder. Pick **iPhone Duo** in the device list, Run, then use the Fold controls (Closed / Partially Open / Fully Open) beside the simulator.
 
-The app needs the four packages at `../packages/PostcardCore|PostcardServices|PostcardMotion|PostcardUI` (Pranav and Barrat's branches). Until those land, this branch was validated against local, uncommitted stubs that mirror `docs/CONTRACTS.md` exactly; see `handoffs/zubair.md`.
+The app needs the four packages at `../packages/PostcardCore|PostcardServices|PostcardMotion|PostcardUI`. Barrat's `PostcardUI` is included on this branch. The other three still come from local, excluded contract stubs while Pranav's branch is pending; see `handoffs/zubair.md`. The current build does not verify live Supabase behavior.
 
 ## Demo mode (no credentials)
 
-Leave `Config/Local.xcconfig` absent. The app boots `FixturePostcardService` and shows a yellow **Demo** banner. Sign in as `alice@demo`, `bob@demo`, or `eve@demo` with any password. Flow: Write → look up `bob` → select → Photo → open the device (or tap Open) → write → close (or tap Seal) → **Send**. Sends are simulated in memory; ~4 s later the recipient "replies", which exercises the realtime refetch path in the inbox. Nothing leaves the device.
+Leave `Config/Local.xcconfig` absent. The app boots `FixturePostcardService`, and each screen labels the demo and simulated send. Sign in as `alice@demo`, `bob@demo`, or `eve@demo` with any password. Flow: Write → look up `bob` → select → Photo → open the device (or tap Open) → write → close (or tap Seal) → **Send**. Sends are simulated in memory; ~4 s later the recipient "replies", which exercises the realtime refetch path in the inbox. Nothing leaves the device.
 
 ## Real mode
 
 ```sh
-cp ios/Config/Local.xcconfig.example ios/Config/Local.xcconfig   # gitignored
+cp Config/Local.xcconfig.example Config/Local.xcconfig   # gitignored
 # SUPABASE_URL = http:/$()/127.0.0.1:54321   ("//" is a comment in xcconfig, hence $())
 # SUPABASE_PUBLISHABLE_KEY = <from `supabase status`>
-xcodegen generate && build
+xcodegen generate
+xcodebuild -project Postcard.xcodeproj -scheme Postcard -sdk iphonesimulator \
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
 
 Values flow xcconfig → Info.plist → `AppConfiguration`. Publishable key only; never a service-role key. When configured, `AppEnvironment.bootstrap()` constructs `SupabasePostcardService(url:publishableKey:)` from PostcardServices.
@@ -52,7 +54,7 @@ Values flow xcconfig → Info.plist → `AppConfiguration`. Publishable key only
 App/            PostcardApp → AppEnvironment (composition root) → RootView → Auth | Main(NavigationStack: Inbox → Compose | Conversation)
 Platform/       DevicePosture, HingePosture (onHingeChange bridge), Haptics, AppConfiguration, DraftStore, PhotoImporter
 Features/       PostcardPresentationController (Duo controller), SessionCoordinator, ComposeViewModel, InboxViewModel, ConversationViewModel
-Tests/App/      XCTest: controller, compose/send semantics, persistence, photo import, configuration
+Tests/App/      XCTest: controller, compose/send semantics, persistence, photo import, photo loading, configuration
 ```
 
 ### Presentation controller rules (`Features/Presentation`)
