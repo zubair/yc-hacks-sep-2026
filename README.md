@@ -156,7 +156,7 @@ Results marked `TBD` are to be filled in by the integration lead from actual run
 | Suite | Environment | Result |
 |---|---|---|
 | Backend end-to-end (`tests/backend`, 18 tests) | Local Supabase, CLI 2.118.0, Linux container | 18/18 pass |
-| Backend end-to-end after the signed-upload-URL fix (new migration and test) | Local Supabase | TBD |
+| Backend end-to-end with the security-fix migrations (`…000500`, `…000600`) and the new overwrite test | Local Supabase | TBD |
 | `PostcardCore` `swift test` | TBD | TBD |
 | `PostcardServices` `swift test` (fixture and wire contract) | TBD | TBD |
 | `PostcardServices` `LiveSupabaseTests` | Local Supabase, Linux | TBD |
@@ -191,7 +191,7 @@ Earlier captures in `design/screenshots/*.png` and `design/references/` predate 
 
 - **Duo hardware:** the hinge path is unit-tested through the controller, and the APIs compile against the iOS 27.1 SDK. A physical fold has not been validated on hardware, or in Bitrig's 3D simulator with this integrated build.
 - **Hosted Supabase:** not deployed. Live mode has been exercised only against a local stack. Deploying requires separate authorization; see "Next steps" in [handoffs/integration.md](handoffs/integration.md).
-- **Security review:** one medium finding is in progress. A signed upload URL created before send could overwrite the sent photo; the fix is a new migration and test. The low and informational notes are listed in the integration handoff.
+- **Security review:** one medium finding is in progress. A signed upload URL created before send could overwrite the sent photo; the fix is migration `20260926000500_protect_sent_photos.sql` plus a backend test. Realtime is also being limited to inserts (`20260926000600`). The remaining low and informational notes are listed in the integration handoff.
 - **Not built:** push notifications, read receipts, printing, payments, and public links.
 - **No pagination UI.** A conversation shows the newest 50 messages. The RPC supports `p_before`, but messages that share the boundary microsecond can be skipped.
 - **Photos:** the server checks bucket size and declared MIME type, not image bytes or pixel dimensions; the client enforces 10 MB and 20 MP. Signed photo URLs expire after 5 minutes, and the app requests fresh ones on refresh.

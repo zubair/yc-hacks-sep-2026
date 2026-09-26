@@ -34,6 +34,14 @@ final class FormRulesTests: XCTestCase {
         draft = validDraft(); draft.destination = String(repeating: "a", count: 201)
         XCTAssertNotNil(PostcardFormRules.sendIssue(draft))
     }
+    func testLengthsCountUnicodeScalarsLikePostgres() {
+        var draft = validDraft()
+        draft.message = String(repeating: "🇵🇹", count: 2_600) // 2,600 characters, 5,200 scalars
+        XCTAssertEqual(draft.message.count, 2_600)
+        XCTAssertNotNil(PostcardFormRules.sendIssue(draft), "server char_length would reject this")
+        draft.message = String(repeating: "🇵🇹", count: 2_500)
+        XCTAssertNil(PostcardFormRules.sendIssue(draft))
+    }
     func testRecipientNormalizationAndExactUsernameRules() {
         XCTAssertEqual(PostcardFormRules.normalizedUsername(" OLIVIA_1 \n"), "olivia_1")
         XCTAssertTrue(PostcardFormRules.validUsername("olivia_1"))

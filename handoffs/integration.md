@@ -103,7 +103,7 @@ Integration commits: `7e658d6` wires Zubair's app to the real Core, Services, an
 |---|---|---|
 | `SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io supabase start -x imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor` | Linux container, CLI 2.118.0 | Stack started, 4 migrations applied |
 | `cd tests/backend && SUPABASE_PUBLISHABLE_KEY=… npm test` | Local Supabase | 18/18 pass |
-| Same suite after the signed-upload-URL fix migration and its new test | Local Supabase | TBD |
+| Same suite with migrations `…000500_protect_sent_photos` and `…000600_realtime_insert_only` and the new overwrite test | Local Supabase | TBD |
 | `cd packages/PostcardCore && swift test` | TBD | TBD |
 | `cd packages/PostcardServices && swift test` | TBD | TBD |
 | `POSTCARD_LIVE_SUPABASE_URL=http://127.0.0.1:54321 POSTCARD_LIVE_SUPABASE_PUBLISHABLE_KEY=… swift test --filter LiveSupabaseTests` | Local Supabase, Linux | TBD |
@@ -123,16 +123,16 @@ Scope: RLS, storage policies, SECURITY DEFINER functions, idempotency, and realt
 
 | Severity | Finding | Status |
 |---|---|---|
-| Medium | A sent photo could be overwritten through a reusable signed upload URL created before send, bypassing the "no overwrite of a sent photo" rule. | Fix in progress by another agent: a new migration plus a backend test. Verification is TBD. |
+| Medium | A sent photo could be overwritten. A signed upload URL issued with `upsert: true` before send stays valid for 2 hours, and uploads through it run as the Storage superuser, which bypasses RLS. | Fix in progress: `supabase/migrations/20260926000500_protect_sent_photos.sql` adds a trigger that refuses any change to, or deletion of, a sent photo's object for every role. It comes with a new backend test, "a sent photo cannot be swapped through an upsert signed upload URL issued before sending". Verification is TBD. |
 | Low / info | `sender_name` is free text supplied by the client, so a sender can show any display name. | Open. Consider deriving it from the sender's profile on the server. |
 | Low / info | A NUL character in the message text reaches the Postgres log on a JSON parse error, which puts personal text in logs. | Open |
-| Low / info | The realtime publication includes deletes. Postcards are immutable, so the useful change is to publish inserts only. | Open |
+| Low / info | The realtime publication included deletes, and Realtime does not filter DELETE events by RLS. | Fix in progress: `supabase/migrations/20260926000600_realtime_insert_only.sql` publishes inserts only. Verification is TBD. |
 | Low / info | Anonymous realtime subscribers receive no rows but can observe event timing. | Open, accepted for v1 |
 | Low / info | The local stack allows 6-character passwords (`supabase/config.toml`). | Documented; hosted projects must set 8 or more (deploy checklist) |
 
 ## Unresolved blockers
 
-1. The medium storage finding is not closed until the fix migration lands and the backend suite, including the new test, passes.
+1. The medium storage finding is not closed until migrations `20260926000500` and `20260926000600` are committed and the backend suite, including the new overwrite test, passes.
 2. No Xcode 27.1 build or test has run from this integrated tree yet. The integration container is Linux. Every Xcode row above is TBD.
 3. The Duo hinge has not been validated on hardware or in Bitrig's 3D fold simulator with this build.
 4. Live app mode has been checked only through the Swift live contract test (TBD), not in the app UI against a backend.
@@ -165,5 +165,5 @@ Scope: RLS, storage policies, SECURITY DEFINER functions, idempotency, and realt
    6. Schedule `node backend/scripts/cleanup-orphans.mjs --apply` daily on a server that holds `SUPABASE_SECRET_KEY`.
    7. Validate against a disposable staging project first, never production users.
 6. **App release.** Inject the hosted `SUPABASE_URL` and publishable key through an ignored or CI-provided xcconfig; never a secret key. Set signing for `com.bairisland.postcard`, then archive and distribute through TestFlight.
-7. **Low findings.** Derive `sender_name` on the server, keep message text out of error logs, and restrict the realtime publication to inserts.
+7. **Remaining low findings.** Derive `sender_name` on the server, and keep message text out of error logs.
 8. **After v1.** A pagination UI (`p_before`), push notifications, and read receipts.
