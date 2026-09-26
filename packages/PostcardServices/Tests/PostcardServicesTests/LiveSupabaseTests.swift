@@ -123,7 +123,31 @@ final class LiveSupabaseTests: XCTestCase {
         }
     }
 
+    /// swift-corelibs-foundation opens WebSockets through the system libcurl, which some distributions
+    /// (e.g. Ubuntu 24.04's libcurl 8.5) build without `ws`/`wss`. Skip clearly instead of failing after the
+    /// realtime client's retries. Run with `LD_LIBRARY_PATH` pointing at a libcurl built with WebSockets to cover it.
+    private func requireWebSocketSupport() async throws {
+        #if canImport(FoundationNetworking)
+        let (url, key) = try configuration()
+        var components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        components.scheme = url.scheme == "https" ? "wss" : "ws"
+        components.path = "/realtime/v1/websocket"
+        components.queryItems = [URLQueryItem(name: "apikey", value: key), URLQueryItem(name: "vsn", value: "2.0.0")]
+        let task = URLSession.shared.webSocketTask(with: try XCTUnwrap(components.url))
+        task.resume()
+        defer { task.cancel(with: .goingAway, reason: nil) }
+        do {
+            try await task.send(.string(#"{"topic":"phoenix","event":"heartbeat","payload":{},"ref":"probe"}"#))
+        } catch let error as URLError where error.code == .unsupportedURL {
+            throw XCTSkip("This Foundation's libcurl lacks WebSocket support: \(error.localizedDescription)")
+        } catch {
+            // Any other probe failure is left for the realtime assertions below to report.
+        }
+        #endif
+    }
+
     func testRealtimeInsertTriggersConversationRefetch() async throws {
+        try await requireWebSocketSupport()
         let (sender, _) = try await signedUp("dave")
         let (recipient, recipientProfile) = try await signedUp("erin")
         let opening = try await sender.send(draft: draft(to: recipientProfile, message: "First, so the conversation exists."))
