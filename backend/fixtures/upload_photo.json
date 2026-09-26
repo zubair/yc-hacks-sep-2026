@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/storage/v1/object/postcard-photos/00000000-0000-4000-a000-00000000a11c/6acee6b3-adc1-42a9-a029-e834bc178932/photo.jpg",
+    "path": "/storage/v1/object/postcard-photos/00000000-0000-4000-a000-00000000a11c/1e6e8fe4-5b26-4531-a57c-25c7273ad732/photo.jpg",
     "headers": {
       "apikey": "<SUPABASE_PUBLISHABLE_KEY>",
       "Authorization": "Bearer <user access token>",
@@ -13,8 +13,8 @@
   "response": {
     "status": 200,
     "body": {
-      "Key": "postcard-photos/00000000-0000-4000-a000-00000000a11c/6acee6b3-adc1-42a9-a029-e834bc178932/photo.jpg",
-      "Id": "92ca0ed6-a8b4-4ecd-9d6a-5a808879df4a"
+      "Key": "postcard-photos/00000000-0000-4000-a000-00000000a11c/1e6e8fe4-5b26-4531-a57c-25c7273ad732/photo.jpg",
+      "Id": "cee20eb3-8982-47bf-86d1-c5ae19ef2c83"
     }
   }
 }

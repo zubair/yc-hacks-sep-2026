@@ -68,7 +68,8 @@ create policy postcard_photos_delete_unsent on storage.objects
     and not private.photo_is_sent(name)
   );
 
--- No UPDATE policy: uploads cannot be overwritten (upsert is refused). Retries reuse the object.
+-- No UPDATE policy, and 20260926000500_hardening.sql adds triggers: objects are never overwritten
+-- or moved (signed upload URLs included), and photos of sent postcards are never deleted.
 
 -- Orphans: uploads older than p_older_than that no postcard references. A server-side job
 -- (backend/scripts/cleanup-orphans.mjs) removes them through the Storage API.
