@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="shared.css">
+<style>
+  body { background: transparent; overflow: visible; }
+  html, body { height: auto; }
+  .layer { display: inline-block; position: relative; padding: 12px; }
+  .layer > .stamp, .layer > .postmark { position: relative; }
+  #message { width: 620px; padding: 30px; color: var(--pen); font-family: var(--hand); font-size: 60px; line-height: 1.62; white-space: pre-wrap; }
+  #message .sign { display: block; margin-top: .55em; padding-left: 1.6em; }
+  #address { width: 620px; padding: 30px; }
+  #address .name { font: 400 96px/1.05 var(--serif); margin: 14px 0 22px; }
+  #address .rule { height: 1.5px; background: var(--ink-faint); margin-bottom: 22px; }
+  #paper { width: 1100px; height: 740px; padding: 0; }
+</style></head>
+<body class="transparent">
+  <div class="layer" id="stamp-color"><div class="stamp" style="filter:drop-shadow(0 3px 6px rgba(0,0,0,.2))"></div></div>
+  <div class="layer" id="stamp-vermilion"><div class="stamp" style="filter:drop-shadow(0 3px 6px rgba(0,0,0,.2))"></div></div>
+  <div class="layer" id="postmark-ink"><div class="postmark"></div></div>
+  <div class="layer" id="postmark-vermilion"><div class="postmark"></div></div>
+  <div class="layer" id="postmark-sealed"><div class="postmark"></div></div>
+  <div class="layer" id="message"></div>
+  <div class="layer" id="address"><div class="label" id="to"></div><div class="name" id="name"></div><div class="rule"></div><div class="label" id="via"></div></div>
+  <div class="layer screen paper" id="paper"></div>
+<script src="shared.js"></script>
+<script>
+PC.boot(async ({ data, photoURL, nat }) => {
+  const st = (tone) => PC.stampSVG({ w: 340, h: 416, photoURL, nat, focus: data.photo.stampFocus, country: data.stamp.country, value: data.stamp.value, tone });
+  document.querySelector('#stamp-color .stamp').innerHTML = st('color');
+  document.querySelector('#stamp-vermilion .stamp').innerHTML = st('vermilion');
+  const pm = (ink, extra) => PC.postmarkSVG({ r: 170, top: data.postmark.top, bottom: data.postmark.bottom, center: [data.dates.postmark], ink, waves: 'left', waveLength: 300, rotate: 0, seed: 11, ...extra });
+  document.querySelector('#postmark-ink .postmark').innerHTML = pm('ink');
+  document.querySelector('#postmark-vermilion .postmark').innerHTML = pm('vermilion');
+  const words = data.copy.sealedMark.toUpperCase().split(' '); const mid = Math.ceil(words.length / 2);
+  document.querySelector('#postmark-sealed .postmark').innerHTML = pm('vermilion', { bottom: data.dates.postmark, center: [words.slice(0, mid).join(' '), words.slice(mid).join(' ')], heart: true, seed: 21 });
+  document.getElementById('message').innerHTML = `${PC.esc(data.message.salutation)}\n${PC.esc(data.message.body)}<span class="sign">${PC.esc(data.message.signoff)}</span>`;
+  document.getElementById('to').textContent = data.copy.toLabel;
+  document.getElementById('name').textContent = data.recipient;
+  document.getElementById('via').textContent = data.copy.sendVia;
+});
+</script></body></html>

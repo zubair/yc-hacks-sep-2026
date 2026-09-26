@@ -1,0 +1,33 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="shared.css">
+<style>
+  .card { position: absolute; left: 86px; top: 150px; width: 480px; height: 340px; background: #fbf8f2; padding: 14px; transform: rotate(-4deg); box-shadow: 0 18px 40px rgba(40,30,20,.22), 0 2px 6px rgba(40,30,20,.16); }
+  .card .photo { position: relative; width: 100%; height: 100%; }
+  .card .stamp { right: 30px; top: 26px; }
+  .card .postmark { right: 60px; top: 30px; }
+  .col { position: absolute; left: 640px; right: 60px; top: 190px; }
+  .check { width: 64px; height: 64px; border-radius: 50%; background: var(--vermilion); display: grid; place-items: center; margin-bottom: 30px; }
+  .title { font: 400 60px/1.05 var(--serif); letter-spacing: -.01em; }
+  .detail { font: italic 400 29px/1.35 var(--serif); color: var(--ink-soft); margin-top: 16px; }
+  .meta { margin-top: 30px; font-size: 16px; letter-spacing: .24em; }
+  .again { position: absolute; right: 64px; bottom: 50px; }
+</style></head>
+<body><div class="screen paper" id="s">
+  <div class="card"><div class="photo clean"><img id="img"></div><div class="stamp" id="stamp"></div><div class="postmark" id="pm"></div></div>
+  <div class="col"><div class="check"><svg width="30" height="24" viewBox="0 0 30 24"><path d="M2 12 L11 21 L28 3" fill="none" stroke="#fbf3ea" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="title" id="title"></div><div class="detail" id="detail"></div><div class="label meta" id="meta"></div></div>
+</div>
+<script src="shared.js"></script>
+<script>
+PC.boot(async ({ data, geo, photoURL, nat }) => {
+  const s = document.getElementById('s');
+  s.style.setProperty('--w', geo.cover.width + 'px'); s.style.setProperty('--h', geo.cover.height + 'px');
+  const img = document.getElementById('img');
+  img.src = photoURL; img.style.objectPosition = `${data.photo.focus[0] * 100}% ${data.photo.focus[1] * 100}%`;
+  document.getElementById('stamp').innerHTML = PC.stampSVG({ w: 70, h: 86, photoURL, nat, focus: data.photo.stampFocus, country: data.stamp.country, value: data.stamp.value, tone: 'vermilion' });
+  document.getElementById('pm').innerHTML = PC.postmarkSVG({ r: 44, top: data.postmark.top, bottom: data.postmark.bottom, center: [data.dates.postmark], ink: 'ink', waves: 'none', rotate: -12, seed: 5 });
+  document.getElementById('title').textContent = data.copy.sent;
+  document.getElementById('detail').textContent = data.copy.sentDetail;
+  document.getElementById('meta').textContent = `${data.dates.long} · ${data.place}`.toUpperCase();
+});
+</script></body></html>

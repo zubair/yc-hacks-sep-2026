@@ -1,0 +1,19 @@
+{
+  "name": "postcard-renders",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Template-driven production renders for Postcard: flat screen art, layered animation assets, and Blender/Cycles device scenes.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "screens": "node render.mjs screens",
+    "scenes": "node render.mjs scenes",
+    "anim": "node render.mjs anim",
+    "overlays": "node render.mjs overlays",
+    "all": "node render.mjs all",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.56.1"
+  }
+}

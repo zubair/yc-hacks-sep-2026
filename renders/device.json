@@ -1,0 +1,8 @@
+{
+  "_comment": "Single source of truth for the fictional dual-screen foldable used in every render. Millimetres. Screen templates are laid out at pxPerMm CSS pixels per millimetre and rasterised at scale, so a template pixel lands exactly on the modelled display.",
+  "pxPerMm": 10,
+  "rasterScale": 3,
+  "pane": { "width": 80, "height": 116, "thickness": 4.8, "cornerRadius": 10.5, "edgeRadius": 1.7 },
+  "screen": { "inset": 3.0, "cornerRadius": 7.5 },
+  "hinge": { "halfGap": 1.5, "axisLift": 0.35, "rodRadius": 1.35 }
+}
