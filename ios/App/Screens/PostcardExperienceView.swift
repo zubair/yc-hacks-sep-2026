@@ -239,6 +239,9 @@ struct PostcardExperienceView: View {
     }
     .background(PostcardStyle.card)
     .overlay(PaperGrain().allowsHitTesting(false))
+    // `.contain` keeps the children's own identifiers (message-editor, seal-postcard); without it the container's
+    // identifier replaces every child's.
+    .accessibilityElement(children: .contain)
     .accessibilityIdentifier("writing")
   }
 
