@@ -1,3 +1,29 @@
+# Postcard — YC Hackathon
+
+Vintage travel postcards for iPhone Duo. Open `Postcard/` for the native app.
+
+- [App setup and demo](Postcard/README.md)
+- [Team assignments and copy/paste prompts](Postcard/TEAM_PROMPTS.md)
+- [Visual references](design/)
+- [Browser interaction demo](demos/postcard/index.html) — download/open locally; sending is a preview.
+
+## Team branches
+
+| Owner | Branch | Work |
+|---|---|---|
+| Barrat | `design/postcard-polish` | Visual direction and demo |
+| Z | `feature/native-postcard-editor` | Photo/message editor and native integration |
+| Zubair | `feature/duo-interaction` | Hinge interactions and simulator |
+| Pranav | `feature/postcard-delivery` | Backend and recipient web experience |
+
+All four branches start from the same Postcard baseline. The existing FoldGonio project below is retained. No branches have been merged.
+
+## Current verification
+
+Native Postcard builds with the Xcode 27.1 beta simulator SDK. Live simulator installation/interaction has not yet been verified because Device Hub requests stalled. Hosted recipient links and printed delivery are not implemented. Image/HTML sharing and supported-device Messages composition are implemented.
+
+---
+
 # FoldGonio
 
 People in physical therapy can't measure their joint range at home, so the phone becomes the goniometer. A goniometer is two arms joined at a pivot, and iPhone Duo has the same parts: two halves and a hinge. FoldGonio reads the hinge as the knee angle.

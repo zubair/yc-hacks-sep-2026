@@ -12,3 +12,10 @@ Package.resolved
 
 # macOS
 .DS_Store
+
+# Postcard local builds and environment
+Postcard/build/
+*.log
+.env
+.env.*
+!.env.example
