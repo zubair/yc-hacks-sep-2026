@@ -2,21 +2,11 @@
 
 ## Summary
 
-All four workstreams are merged, and the app compiles against the real `PostcardCore`, `PostcardServices`, `PostcardMotion`, and `PostcardUI` packages; the local contract stubs are gone. The integration work also:
+All four workstreams are merged. The app builds with Xcode 27.1 against the real `PostcardCore`, `PostcardServices`, `PostcardMotion`, and `PostcardUI` packages; the app's local contract stubs are gone. Integration also gated the Duo APIs on iOS 27.1 (app target iOS 17.0), added fixture demo controls and a UI test target, fixed the defects found by two code reviews and a security review, and added an opt-in live contract test that runs the Swift Supabase adapter against a real local stack.
 
-- Gated the Duo APIs on iOS 27.1 and lowered the app target to iOS 17.0.
-- Fixed several app-state issues found while wiring.
-- Added fixture demo controls and a UI test target.
-- Added an opt-in live contract test of the Swift Supabase adapter against a local stack.
+Verified: backend 19/19 on a from-scratch local stack; PostcardServices 11/11 including live tests (Linux); PostcardCore 1/1; PostcardUI form rules 6/6; app build succeeds; iPhone 17 Pro simulator 25/25 unit and 3/3 UI tests; iPhone Duo simulator unit tests pass, UI tests 1/3 (message-editor focus in the split layout, open). Not done: hosted deployment, app UI in live mode, a physical fold, real-user messaging.
 
-Results:
-
-- **Backend:** the end-to-end suite passes 18/18 against local Supabase in the Linux container.
-- **Security review:** one medium finding; the fix is in progress.
-- **Xcode builds and tests:** need a Mac with Xcode 27.1. Their results are `TBD` below.
-- **Not done:** no hosted deployment and no real-user messaging.
-
-Working branch: `claude/great-cray-2rrx7l`, based on `origin/integration/final` @ `8d7e9fc`. Final pushed SHA: `TBD`.
+Working branch: `claude/great-cray-2rrx7l`, based on `origin/integration/final` @ `8d7e9fc`, merged into `integration/final` through zubair/yc-hacks-sep-2026#3.
 
 ## Integrated contributor SHAs
 
@@ -30,7 +20,16 @@ Merge order: pranav → zafar → barrat → zubair, using merge commits.
 | `team/zubair` | `6216a60` | Merge commit `091dac4` | Includes Zubair's reconcile `ee292d3` and the PostcardUI wiring `fe73bfd` |
 | `team/zubair-claude` | `4af4e3b` | Ancestor of `team/zubair` | Not merged separately |
 
-Integration commits: `7e658d6` wires Zubair's app to the real Core, Services, and Motion packages. Later integration commits, including the security fix and these docs: `TBD`.
+Integration commits (after the merges):
+
+| Commit | Change |
+|---|---|
+| `7e658d6` | Wire the app to the real packages; Duo gating; lookup feedback; draft resume; offline launch state; demo controls; UI tests |
+| `29045b1` | Import `PostcardService` from Services (first Xcode build failure); live adapter test; rule harness uses the real Core |
+| `ad20349` | Text lengths counted in Unicode scalars, matching Postgres `char_length` |
+| `2f10709` | Adapter: update-stream poll leak and full-reload churn; username-taken mapping; fixture parity |
+| `daa0cbb` | Backend: sent photos cannot be replaced or deleted; realtime inserts only |
+| `2146398` | App review fixes: sent-draft resurrection, retry semantics, per-account data, photo caching |
 
 ## Conflict resolutions
 
@@ -97,57 +96,70 @@ Integration commits: `7e658d6` wires Zubair's app to the real Core, Services, an
 - **Live Swift test:** `POSTCARD_LIVE_SUPABASE_URL` and `POSTCARD_LIVE_SUPABASE_PUBLISHABLE_KEY`, local hosts only.
 - **Committed secrets:** none. `ios/Config/Postcard.xcconfig` is committed with empty values.
 
+## Review fixes
+
+Two read-only code reviews (app, packages) and a security review ran against the integrated tree. Everything below is fixed and covered by tests unless marked open.
+
+| Severity | Finding | Fix |
+|---|---|---|
+| High | A confirmed-sent draft was written back to disk on backgrounding and returned after relaunch with its old id | Never persist a sent draft (`IntegrationFixTests`) |
+| High | The composer's Try again called send for any error, so after a photo error it could send a half-written card | Re-send only after a failed send; otherwise dismiss |
+| High | The realtime update stream leaked its 20 s poll when a refetch threw | Poll cancelled on every exit; failed refetch no longer ends the stream |
+| High | The update stream yielded every conversation on every event and tick; the app reloaded and re-downloaded all photos every 20 s | Yield only new or updated conversations; photos download once per screen |
+| Medium | A new photo reused the old draft id, so a retry could send the previously uploaded photo | New photo, new idempotency key |
+| Medium | Previous account's inbox and unsent draft stayed visible and sendable after sign-out or account switch | Cleared on sign-out/switch; offline relaunch keeps them |
+| Medium | Client counted characters, server counts Unicode scalars; emoji-heavy notes failed after upload | Scalar counting in `PostcardValidation`, form rules, and the counter |
+| Medium | A taken username at sign-up surfaced as "Please try again." | Specific validation message (GoTrue 409; 500 on older GoTrue) |
+| Medium (security) | A signed upload URL issued before sending could replace a sent photo | Storage trigger refuses changes to sent photos for every role; `send_postcard` locks the photo row; attack reproduced by a new e2e test |
+| Low | Demo: Simulate offline then View as recipient stranded the app | Switch disabled while offline |
+| Low | Sign-out while offline left the session state signed in | Always ends signed out |
+| Low | Fixture self-send and conflicting draft reuse differed from the live RPC | Fixture matches the RPC |
+| Low (security) | Realtime publication included deletes, which Realtime does not filter by RLS | Inserts only |
+
 ## Commands and results
 
 | Command | Environment | Result |
 |---|---|---|
-| `SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io supabase start -x imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor` | Linux container, CLI 2.118.0 | Stack started, 4 migrations applied |
-| `cd tests/backend && SUPABASE_PUBLISHABLE_KEY=… npm test` | Local Supabase | 18/18 pass |
-| Same suite with migrations `…000500_protect_sent_photos` and `…000600_realtime_insert_only` and the new overwrite test | Local Supabase | TBD |
-| `cd packages/PostcardCore && swift test` | TBD | TBD |
-| `cd packages/PostcardServices && swift test` | TBD | TBD |
-| `POSTCARD_LIVE_SUPABASE_URL=http://127.0.0.1:54321 POSTCARD_LIVE_SUPABASE_PUBLISHABLE_KEY=… swift test --filter LiveSupabaseTests` | Local Supabase, Linux | TBD |
-| `cd packages/PostcardUI && xcodebuild -scheme PostcardUI -destination 'platform=iOS Simulator,name=iPhone Duo' test` | Xcode 27.1 | TBD |
-| `python3 packages/PostcardUI/Examples/test_rules.py` | Python 3 | TBD |
-| `cd ios && xcodegen generate && xcodebuild … -destination 'generic/platform=iOS Simulator' build` | Xcode 27.1 | TBD |
-| `xcodebuild … -destination 'platform=iOS Simulator,name=iPhone Duo' test` (PostcardAppTests and PostcardUITests) | Xcode 27.1, iOS 27.1 | TBD |
-| Same, on an ordinary iPhone below iOS 27.1 (button fallback) | Xcode 27.1 | TBD |
-| Live app against local Supabase: two-account send, photo, realtime, reconnect | Mac with simulators | TBD |
-| Physical fold in Bitrig's 3D Duo simulator | Bitrig | TBD |
+| `supabase start -x imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor` | Linux container, CLI 2.118.0 (images from `public.ecr.aws`; Docker Hub returned 429) | Stack started |
+| `supabase db reset` then `cd tests/backend && SUPABASE_PUBLISHABLE_KEY=… npm test` | Local Supabase, all six migrations from scratch | 19/19 pass |
+| `cd packages/PostcardCore && swift test` | Linux, Swift 6.4 | 1/1 pass |
+| `cd packages/PostcardServices && POSTCARD_LIVE_SUPABASE_URL=http://127.0.0.1:54321 POSTCARD_LIVE_SUPABASE_PUBLISHABLE_KEY=… swift test` | Linux, Swift 6.4, local Supabase | 11/11 pass with a WebSocket-capable libcurl; with Ubuntu 24.04's libcurl 8.5 the realtime test skips with the reason (10 pass, 1 skip) |
+| `python3 packages/PostcardUI/Examples/test_rules.py` | Linux, Swift 6.4 | 6/6 pass |
+| `cd ios && xcodegen generate && xcodebuild … -destination 'generic/platform=iOS Simulator' build` | Xcode 27.1 on macOS 27.0 | Build succeeded |
+| `xcodebuild … test` (PostcardAppTests + PostcardUITests) | iPhone 17 Pro simulator, iOS 27.1 | 25/25 unit, 3/3 UI pass |
+| Same | iPhone Duo simulator, iOS 27.1 | Unit tests pass; UI 1/3: `testComposeOpenSealExplicitSendThenRecipientReadsIt` and `testFailedSendKeepsDraftAndRetryStoresExactlyOnePostcard` fail with "Neither element nor any descendant has keyboard focus" on `message-editor` in the inner-display split layout |
+| PostcardUI package tests via `xcodebuild -scheme PostcardUI` | — | Not run in this pass (form rules run on Linux above) |
+| App in live mode, two accounts against local Supabase | — | Not run: the local stack ran in the Linux container, which the Mac simulator cannot reach |
+| Physical fold in Bitrig's 3D Duo simulator | — | Not run |
 
-Screenshots of the integrated app go in `design/screenshots/integration/`. They are TBD; the planned list is in the root README.
+Screenshots: `design/screenshots/integration/iphone-flow.jpg` and `iphone-states.jpg`, contact sheets of the UI-test captures from the passing iPhone 17 Pro run.
 
 ## Security review
 
-Scope: RLS, storage policies, SECURITY DEFINER functions, idempotency, and realtime exposure in `supabase/migrations`.
+Scope: RLS, storage policies, SECURITY DEFINER functions, idempotency, logging, and realtime exposure. Probed empirically on the local stack with throwaway users. Confirmed sound: all eight SECURITY DEFINER functions pin `search_path = ''` with no grants to `PUBLIC` or `anon`; identity always comes from `auth.uid()`; RLS policies compare columns with `auth.uid()` (no recursion); postcards are immutable; idempotency holds under concurrency via unique keys.
 
 | Severity | Finding | Status |
 |---|---|---|
-| Medium | A sent photo could be overwritten. A signed upload URL issued with `upsert: true` before send stays valid for 2 hours, and uploads through it run as the Storage superuser, which bypasses RLS. | Fix in progress: `supabase/migrations/20260926000500_protect_sent_photos.sql` adds a trigger that refuses any change to, or deletion of, a sent photo's object for every role. It comes with a new backend test, "a sent photo cannot be swapped through an upsert signed upload URL issued before sending". Verification is TBD. |
-| Low / info | `sender_name` is free text supplied by the client, so a sender can show any display name. | Open. Consider deriving it from the sender's profile on the server. |
-| Low / info | A NUL character in the message text reaches the Postgres log on a JSON parse error, which puts personal text in logs. | Open |
-| Low / info | The realtime publication included deletes, and Realtime does not filter DELETE events by RLS. | Fix in progress: `supabase/migrations/20260926000600_realtime_insert_only.sql` publishes inserts only. Verification is TBD. |
-| Low / info | Anonymous realtime subscribers receive no rows but can observe event timing. | Open, accepted for v1 |
-| Low / info | The local stack allows 6-character passwords (`supabase/config.toml`). | Documented; hosted projects must set 8 or more (deploy checklist) |
+| Medium | A signed upload URL issued with `upsert: true` before sending (valid 2 h, runs as the storage superuser) could replace a sent photo | **Fixed** in `20260926000500_protect_sent_photos.sql` with an e2e test that reproduces the attack |
+| Low | `sender_name` is client-supplied free text, so the displayed sender name can be spoofed (`sender_id` is always correct) | Open: derive it from the sender's profile on the server, or show the peer profile name |
+| Low | A U+0000 in message text fails JSON parsing, and Postgres logs part of the body | Open: clients should strip NUL; documented in `backend/README.md` |
+| Low | Realtime publication included deletes, not filtered by RLS | **Fixed** in `20260926000600_realtime_insert_only.sql` |
+| Info | Anonymous realtime subscribers see event timing, not content | Accepted for v1; private channels would close it |
+| Info | Kong logs signed-URL tokens (query string) | Accepted; URLs expire in 5 minutes |
+| Info | Local minimum password was 6 | Set to 8 in `supabase/config.toml` (applies on next `supabase start`) |
 
 ## Unresolved blockers
 
-1. The medium storage finding is not closed until migrations `20260926000500` and `20260926000600` are committed and the backend suite, including the new overwrite test, passes.
-2. No Xcode 27.1 build or test has run from this integrated tree yet. The integration container is Linux. Every Xcode row above is TBD.
-3. The Duo hinge has not been validated on hardware or in Bitrig's 3D fold simulator with this build.
-4. Live app mode has been checked only through the Swift live contract test (TBD), not in the app UI against a backend.
-5. Hosted Supabase is not deployed; there is no authorization or credentials for it.
-6. There are no screenshots of the integrated app yet.
+1. **Duo UI tests, 2 of 3 fail** on message-editor keyboard focus in the inner-display split layout. Whether a person can type there by hand is not yet confirmed. Resolve before a Duo demo; the same flows pass on iPhone 17 Pro.
+2. **App UI in live mode is unverified.** The adapter is verified live on Linux; the app has not been run against a backend.
+3. **The hinge** has not been exercised on hardware or in Bitrig's 3D fold simulator with this build.
+4. **iOS below 27.1** is compile-checked through availability gates; no simulator runtime below 27.1 was available.
+5. **Hosted Supabase** is not deployed; there is no authorization or credentials for it.
 
 ## Next steps for a live release
 
-1. **Close the medium finding.** Run `supabase db reset`, then `cd tests/backend && SUPABASE_PUBLISHABLE_KEY=<key> npm test`. All tests, including the new overwrite test, must pass.
-2. **Mac verification.** On a Mac with Xcode 27.1, run the iOS build and test commands in the root README:
-   - iPhone Duo on iOS 27.1
-   - one ordinary iPhone below 27.1
-   - the PostcardUI package tests
-
-   Capture the planned screenshots into `design/screenshots/integration/`, then fill in the TBD cells here and in the README.
+1. **Duo focus.** Reproduce the message-editor focus failure on the iPhone Duo simulator by hand, fix it (app or UI package), and get `PostcardUITests` green there. Run the PostcardUI package tests with `xcodebuild -scheme PostcardUI`.
+2. **Mac live run.** Start Supabase on the Mac (Docker Desktop) so the simulator can reach it.
 3. **Local live run.** Create `ios/Config/Local.xcconfig` from `supabase status`. Sign in as `alice@postcard.test` and `bob@postcard.test` on two simulators, then check:
    - an explicit send
    - receipt of the photo and note

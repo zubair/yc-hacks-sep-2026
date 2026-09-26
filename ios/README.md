@@ -9,12 +9,12 @@ Native SwiftUI app shell, Duo presentation controller, view models, draft persis
 | Xcode | 27.1 (27A9269) with the iOS 27.1 SDK. It is needed to compile the Duo APIs. On the dev Mac it is `~/Downloads/Xcode.app`; `/Applications/Xcode.app` there is 27.0 and cannot build the app. |
 | Generator | XcodeGen 2.44 or later, reading `ios/project.yml`. The generated `Postcard.xcodeproj` and `App/Info.plist` are gitignored. |
 | App deployment target | iOS 17.0, the same as the packages |
-| Simulators | **iPhone Duo** on the iOS 27.1 runtime for hinge and vertical-bar behavior. Any iOS 17+ iPhone, for example iPhone 17 Pro on iOS 26.5, for the button fallback. |
+| Simulators | **iPhone Duo** on the iOS 27.1 runtime for hinge and vertical-bar behavior. Any other iPhone (for example iPhone 17 Pro) for the button path. |
 | Bitrig | 0.26.1. It opens `ios/` in place, and its iPhone Duo simulator has Fold controls (Closed / Partially Open / Fully Open). |
 
 ### Duo APIs and availability gating
 
-The iOS 27.1 SDK declares every Duo API the app uses as `@available(anyAppleOS 27.1)`:
+Every Duo API the app uses ships in the iOS 27.1 SDK (declared `anyAppleOS 27.1`; `visibilityPriority` is iOS 27.0):
 
 - `onHingeChange` and `DeviceHinge`
 - `ArrangementView` with `.split`
@@ -49,11 +49,13 @@ xcodebuild ... test -only-testing:PostcardAppTests
 xcodebuild ... test -only-testing:PostcardUITests
 ```
 
-To check the button fallback, swap the destination for an ordinary iPhone, for example `'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'`.
+To check the button path, swap the destination for an ordinary iPhone, for example `'platform=iOS Simulator,name=iPhone 17 Pro'`.
+
+Latest results (Xcode 27.1, iOS 27.1 simulators): iPhone 17 Pro, 25/25 unit and 3/3 UI tests pass. iPhone Duo, unit tests pass and UI tests pass 1/3; the other two cannot focus the message editor in the inner-display split layout (open issue, see `handoffs/integration.md`).
 
 | Target | Sources | Covers |
 |---|---|---|
-| `PostcardAppTests` | `Tests/App` | The presentation controller: baseline posture, open/seal-once, jitter, debounce and deferred close, suppression, and manual fallback. Compose semantics: folding never sends, one send per submission, failed send keeps the draft id, and validation guards. Draft persistence, photo import limits, configuration, posture mapping, and photo loading with retry. |
+| `PostcardAppTests` | `Tests/App` | The presentation controller: baseline posture, open/seal-once, jitter, debounce and deferred close, suppression, and manual fallback. Compose semantics: folding never sends, one send per submission, failed send keeps the draft id, and validation guards. Draft persistence, photo import limits, configuration, posture mapping, and photo loading with retry. `IntegrationFixTests`: a sent draft is never persisted again, Try again re-sends only after a failed send, a new photo gets a new draft id, and account changes clear the previous account's data. |
 | `PostcardUITests` | `Tests/UI` | The fixture flow through the real app: compose, open, seal, explicit send, then the recipient reads the note and photo. A failed send followed by Retry stores exactly one postcard. The offline inbox shows Retry and recovers. It launches with `-resetDemo -forceDemo` and attaches screenshots to the result bundle. |
 
 Bitrig: **File → Open** the `ios/` folder, choose **iPhone Duo**, Run, then use the Fold controls beside the simulator.
