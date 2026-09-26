@@ -16,6 +16,7 @@ Branch `team/zafar`. The latest commit on this branch is the tested revision.
 | `supabase/migrations/20260926000300_storage.sql` | Bucket, storage policies, orphan listing |
 | `supabase/migrations/20260926000400_realtime.sql` | `postcards` added to `supabase_realtime` |
 | `supabase/seed.sql` | Local-only users alice/bob/eve (password `postcard-local-1`) |
+| `backend/TEAM_SETUP.md` | Team access guide: who needs what, local + hosted setup |
 | `backend/README.md` | Setup, architecture, SECURITY DEFINER notes, error mapping, deploy checklist |
 | `backend/fixtures/*.json` | Real request/response pairs recorded from the local stack (tokens redacted) |
 | `backend/scripts/cleanup-orphans.mjs` | Server-side orphan photo cleanup (dry run by default) |
