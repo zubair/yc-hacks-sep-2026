@@ -111,6 +111,17 @@ final class LiveSupabaseTests: XCTestCase {
         await XCTAssertThrowsErrorAsync(try await alice.send(draft: self.draft(to: aliceProfile, message: "To myself"))) { error in
             guard case .validation = error as? PostcardServiceError else { return XCTFail("self-send must be rejected, got \(error)") }
         }
+        // A taken username fails inside the profile trigger; it must surface as a validation error, not a server error.
+        let duplicate = try service()
+        await XCTAssertThrowsErrorAsync(try await duplicate.signUp(
+            email: "carol_again_\(self.run)@postcard.test", password: "local-test-password-1",
+            username: aliceProfile.username, displayName: "Carol Again"
+        )) { error in
+            XCTAssertEqual(error as? PostcardServiceError, .validation(SupabasePostcardService.usernameUnavailable))
+        }
+        let duplicateProfile = try await duplicate.currentProfile()
+        XCTAssertNil(duplicateProfile, "a failed signup leaves no session")
+
         let anonymous = try service()
         let nobody = try await anonymous.currentProfile()
         XCTAssertNil(nobody)

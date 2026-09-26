@@ -77,15 +77,21 @@ public actor SupabasePostcardService: PostcardService {
         guard normalized.range(of: "^[a-z0-9_]{3,30}$", options: .regularExpression) != nil else {
             throw PostcardServiceError.validation("Username must be 3–30 lowercase letters, numbers, or underscores.")
         }
-        guard !displayName.isEmpty, displayName.count <= 100 else {
+        guard !displayName.isEmpty, PostcardValidation.length(displayName) <= 100 else {
             throw PostcardServiceError.validation("Enter a display name of 100 characters or less.")
         }
         do {
             _ = try await client.auth.signUp(email: email, password: password, data: [
                 "username": .string(normalized), "display_name": .string(displayName)
             ])
+        } catch let AuthError.api(_, _, _, response) where [409, 500].contains(response.statusCode) {
+            // The profile trigger rejects a taken username. GoTrue passes its PT409 through as HTTP 409;
+            // older GoTrue versions report any trigger failure as HTTP 500 "Database error saving new user".
+            throw PostcardServiceError.validation(Self.usernameUnavailable)
         } catch { throw Self.map(error) }
     }
+
+    static let usernameUnavailable = "That username is taken or invalid. Choose another."
 
     public func signIn(email: String, password: String) async throws {
         do { _ = try await client.auth.signIn(email: email, password: password) }
@@ -100,8 +106,7 @@ public actor SupabasePostcardService: PostcardService {
     public func lookupRecipient(username: String) async throws -> PostcardProfile? {
         do {
             let response = try await client.rpc("lookup_recipient", params: ["p_username": username.lowercased()]).execute()
-            if response.data == Data("null".utf8) { return nil }
-            return try decoder.decode(PostcardProfile.self, from: response.data)
+            return try decoder.decode(PostcardProfile?.self, from: response.data)
         } catch { throw Self.map(error) }
     }
 
@@ -164,23 +169,34 @@ public actor SupabasePostcardService: PostcardService {
             let task = Task {
                 let channel = client.channel("postcards-\(UUID().uuidString)")
                 let changes = channel.postgresChange(InsertAction.self, schema: "public", table: "postcards")
+                let tracker = ConversationChangeTracker()
+                var poll: Task<Void, Never>?
+                var failure: Error?
                 do {
                     try await channel.subscribeWithError()
-                    // Initial and periodic refetch also cover reconnects and dropped realtime events.
-                    for item in try await self.conversations() { continuation.yield(item.id) }
-                    let poll = Task {
+                    // The first fetch after subscribing reports every conversation, covering reconnects and
+                    // anything missed while disconnected. Later refetches report only new or updated ones.
+                    for id in await tracker.changed(in: try await self.conversations(), reportAll: true) {
+                        continuation.yield(id)
+                    }
+                    // Periodic refetch covers dropped realtime events.
+                    poll = Task {
                         while !Task.isCancelled {
                             try? await Task.sleep(for: .seconds(20))
                             if Task.isCancelled { break }
-                            for item in (try? await self.conversations()) ?? [] { continuation.yield(item.id) }
+                            guard let items = try? await self.conversations() else { continue }
+                            for id in await tracker.changed(in: items) { continuation.yield(id) }
                         }
                     }
                     for await _ in changes {
                         if Task.isCancelled { break }
-                        for item in try await self.conversations() { continuation.yield(item.id) }
+                        // One failed refetch must not end the stream; the next event or poll retries.
+                        guard let items = try? await self.conversations() else { continue }
+                        for id in await tracker.changed(in: items) { continuation.yield(id) }
                     }
-                    poll.cancel()
-                } catch { continuation.finish(throwing: Self.map(error)) }
+                } catch { failure = error }
+                poll?.cancel()
+                if let failure { continuation.finish(throwing: Self.map(failure)) }
                 await channel.unsubscribe()
                 continuation.finish()
             }
@@ -253,6 +269,24 @@ public actor SupabasePostcardService: PostcardService {
             }
         }
         return .server("Please try again.")
+    }
+}
+
+/// Remembers each conversation's `updatedAt` for one update stream so a refetch reports only what changed,
+/// instead of making the app reload every conversation on each event or poll.
+actor ConversationChangeTracker {
+    private var known: [UUID: Date] = [:]
+
+    /// IDs of conversations that are new or whose `updatedAt` moved forward; every ID when `reportAll`.
+    /// `updated_at` only increases, so a stale, out-of-order refetch never reports or rewinds anything.
+    func changed(in conversations: [PostcardConversation], reportAll: Bool = false) -> [UUID] {
+        var ids: [UUID] = []
+        for conversation in conversations {
+            let isNewer = known[conversation.id].map { conversation.updatedAt > $0 } ?? true
+            if isNewer { known[conversation.id] = conversation.updatedAt }
+            if reportAll || isNewer { ids.append(conversation.id) }
+        }
+        return ids
     }
 }
 

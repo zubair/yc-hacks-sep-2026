@@ -13,7 +13,8 @@ public actor FixturePostcardService: PostcardService {
 
     private var signedInProfile: PostcardProfile?
     private var stored: [PostcardMessage] = []
-    private var byRequest: [UUID: PostcardMessage] = [:]
+    /// Sent drafts by draft id, with the message each produced, to model idempotent retries.
+    private var byRequest: [UUID: (draft: PostcardDraft, message: PostcardMessage)] = [:]
     private var photos: [String: URL] = [:]
     private var listeners: [UUID: AsyncThrowingStream<UUID, Error>.Continuation] = [:]
     private var failNextSend = false
@@ -81,9 +82,17 @@ public actor FixturePostcardService: PostcardService {
     public func send(draft: PostcardDraft) throws -> PostcardMessage {
         try requireAccess()
         try PostcardValidation.validate(draft)
-        guard draft.recipientId != signedInProfile?.id,
-              [Self.sender.id, Self.recipient.id].contains(draft.recipientId!) else { throw PostcardServiceError.notFound }
-        if let original = byRequest[draft.id] { return original }
+        // Same checks, order, and idempotency rules as the live `send_postcard` RPC.
+        guard draft.recipientId != signedInProfile?.id else {
+            throw PostcardServiceError.validation("You can't send a postcard to yourself.")
+        }
+        guard [Self.sender.id, Self.recipient.id].contains(draft.recipientId!) else { throw PostcardServiceError.notFound }
+        if let sent = byRequest[draft.id] {
+            guard sent.draft == draft else {
+                throw PostcardServiceError.validation("this draft was already sent with different content; start a new draft")
+            }
+            return sent.message
+        }
         if failNextSend {
             failNextSend = false
             throw PostcardServiceError.server("Demo failure. Retry the same draft.")
@@ -100,7 +109,7 @@ public actor FixturePostcardService: PostcardService {
             message: draft.message, photoPath: path, createdAt: Date()
         )
         stored.append(item)
-        byRequest[draft.id] = item
+        byRequest[draft.id] = (draft, item)
         for listener in listeners.values { listener.yield(Self.conversationID) }
         return item
     }

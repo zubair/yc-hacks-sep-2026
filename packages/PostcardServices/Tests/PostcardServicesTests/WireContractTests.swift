@@ -48,4 +48,47 @@ final class WireContractTests: XCTestCase {
             XCTAssertEqual(error as? PostcardServiceError, .validation("Choose a photo for your postcard."))
         }
     }
+
+    /// Postgres `char_length` counts Unicode scalars; a flag emoji is one Swift Character but two scalars.
+    func testLengthLimitsCountUnicodeScalarsLikePostgres() throws {
+        let flag = "\u{1F1F5}\u{1F1F9}"
+        XCTAssertEqual(flag.count, 1)
+        var draft = PostcardDraft(recipientId: FixturePostcardService.recipient.id, recipientName: "Sam", senderName: "Alex",
+                                  message: String(repeating: flag, count: 2_500), photoData: Data([0xFF, 0xD8, 0xFF]))
+        XCTAssertNoThrow(try PostcardValidation.validate(draft), "5,000 scalars is the server's limit")
+        draft.message = String(repeating: flag, count: 2_600)
+        XCTAssertEqual(draft.message.count, 2_600, "under 5,000 grapheme clusters")
+        XCTAssertThrowsError(try PostcardValidation.validate(draft)) { error in
+            XCTAssertEqual(error as? PostcardServiceError, .validation("Write a note between 1 and 5,000 characters."))
+        }
+        draft.message = "Hello"
+        draft.senderName = String(repeating: flag, count: 51)
+        XCTAssertThrowsError(try PostcardValidation.validate(draft)) { error in
+            XCTAssertEqual(error as? PostcardServiceError, .validation("Names must be 100 characters or less."))
+        }
+        draft.senderName = "Alex"
+        draft.destination = String(repeating: flag, count: 101)
+        XCTAssertThrowsError(try PostcardValidation.validate(draft)) { error in
+            XCTAssertEqual(error as? PostcardServiceError, .validation("Destination must be 200 characters or less."))
+        }
+    }
+
+    func testUpdateTrackerReportsOnlyNewOrUpdatedConversationsAfterTheFirstFetch() async {
+        func conversation(_ id: UUID, _ seconds: TimeInterval) -> PostcardConversation {
+            PostcardConversation(id: id, peer: FixturePostcardService.recipient, latestMessage: nil,
+                                 updatedAt: Date(timeIntervalSince1970: seconds))
+        }
+        let a = UUID(), b = UUID(), c = UUID()
+        let tracker = ConversationChangeTracker()
+        let initial = await tracker.changed(in: [conversation(a, 10), conversation(b, 5)], reportAll: true)
+        XCTAssertEqual(initial, [a, b], "the first fetch after (re)subscribing reports everything")
+        let unchanged = await tracker.changed(in: [conversation(a, 10), conversation(b, 5)])
+        XCTAssertEqual(unchanged, [])
+        let changed = await tracker.changed(in: [conversation(c, 12), conversation(a, 11), conversation(b, 5)])
+        XCTAssertEqual(changed, [c, a], "a new conversation and one whose updatedAt moved")
+        let stale = await tracker.changed(in: [conversation(a, 10)])
+        XCTAssertEqual(stale, [], "an out-of-order older refetch neither reports nor rewinds")
+        let after = await tracker.changed(in: [conversation(a, 11)])
+        XCTAssertEqual(after, [])
+    }
 }
