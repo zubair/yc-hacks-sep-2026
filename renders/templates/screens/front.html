@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="shared.css">
+<style>
+  .photo { left: 38px; top: 38px; right: 38px; height: 598px; border-radius: 6px; }
+  .title { position: absolute; left: 82px; bottom: 176px; color: #fbf7ef; text-shadow: 0 2px 22px rgba(0,0,0,.28); }
+  .title .from { font: italic 400 38px/1 var(--serif); margin-bottom: 8px; }
+  .title .place { font: 380 104px/0.98 var(--serif); letter-spacing: -0.01em; max-width: 700px; }
+  .stamp { right: 76px; top: 70px; filter: drop-shadow(0 3px 5px rgba(0,0,0,.22)); transform: rotate(2deg); }
+  .postmark { right: 0px; top: 92px; }
+  .foot { position: absolute; left: 60px; right: 60px; bottom: 0; height: 104px; display: flex; align-items: center; justify-content: space-between; font: italic 400 31px var(--serif); color: var(--ink); }
+  .foot .cta { display: flex; align-items: center; gap: 14px; }
+  .dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; background: var(--vermilion); margin-right: 14px; vertical-align: middle; }
+</style></head>
+<body><div class="screen paper" id="s">
+  <div class="photo"><img id="img"></div>
+  <div class="title"><div class="from" id="from"></div><div class="place" id="place"></div></div>
+  <div class="stamp" id="stamp"></div>
+  <div class="postmark" id="pm"></div>
+  <div class="foot"><div id="who"></div><div class="cta"><span id="cta"></span><span id="arrow"></span></div></div>
+</div>
+<script src="shared.js"></script>
+<script>
+PC.boot(async ({ data, geo, photoURL, nat, mode }) => {
+  const s = document.getElementById('s');
+  s.style.setProperty('--w', geo.cover.width + 'px'); s.style.setProperty('--h', geo.cover.height + 'px');
+  const img = document.getElementById('img');
+  img.src = photoURL; img.style.objectPosition = `${data.photo.focus[0] * 100}% ${data.photo.focus[1] * 100}%`;
+  document.getElementById('from').textContent = data.copy.greeting;
+  const place = document.getElementById('place'); place.textContent = data.place;
+  if (place.scrollWidth > 700) place.style.fontSize = Math.max(60, 104 * 700 / place.scrollWidth) + 'px';
+  document.getElementById('stamp').innerHTML = PC.stampSVG({ w: 128, h: 158, photoURL, nat, focus: data.photo.stampFocus, country: data.stamp.country, value: data.stamp.value, tone: 'vermilion' });
+  const pm = document.getElementById('pm');
+  pm.innerHTML = PC.postmarkSVG({ r: 74, top: data.postmark.bottom, bottom: data.postmark.motto || data.postmark.top, center: [data.dates.postmark], ink: data.theme.frontPostmarkInk, waves: 'right', waveLength: 96, rotate: -6, seed: 4 });
+  PC.placePostmark(pm, { cx: 852, cy: 166, r: 74, waves: 'right', waveLength: 96 });
+  const received = mode === 'received';
+  document.getElementById('who').innerHTML = received ? `<span class="dot"></span>${PC.esc(data.copy.receivedFrom)}` : PC.esc(data.copy.forLabel);
+  document.getElementById('cta').textContent = received ? data.copy.openToRead : data.copy.openHint;
+  document.getElementById('arrow').innerHTML = PC.arrowSVG();
+});
+</script></body></html>

@@ -1,0 +1,114 @@
+@font-face { font-family: 'Newsreader'; src: url('../../assets/fonts/Newsreader.ttf'); font-weight: 200 800; }
+@font-face { font-family: 'Newsreader'; src: url('../../assets/fonts/Newsreader-Italic.ttf'); font-weight: 200 800; font-style: italic; }
+@font-face { font-family: 'Jost'; src: url('../../assets/fonts/Jost.ttf'); font-weight: 100 900; }
+@font-face { font-family: 'NothingYouCouldDo'; src: url('../../assets/fonts/NothingYouCouldDo.ttf'); }
+@font-face { font-family: 'Caveat'; src: url('../../assets/fonts/Caveat.ttf'); font-weight: 400 700; }
+
+:root {
+  --paper: #f3ede2;
+  --paper-deep: #e8dfcf;
+  --ink: #1e2b25;
+  --ink-soft: rgba(30, 43, 37, 0.64);
+  --ink-faint: rgba(30, 43, 37, 0.22);
+  --pen: #22302b;
+  --vermilion: #c2482e;
+  --vermilion-soft: #d86a4f;
+  --serif: 'Newsreader', 'Iowan Old Style', Georgia, serif;
+  --sans: 'Jost', 'Avenir Next', Helvetica, sans-serif;
+  --hand: 'NothingYouCouldDo', cursive;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+body.transparent { background: transparent; }
+
+/* Screen canvas: exact display size, paper stock with tooth and fibres. */
+.screen {
+  position: relative;
+  width: var(--w);
+  height: var(--h);
+  overflow: hidden;
+  background: var(--paper);
+}
+.paper::before,
+.paper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.paper::before {
+  background:
+    radial-gradient(120% 90% at 30% 20%, rgba(255, 252, 244, 0.55), transparent 60%),
+    radial-gradient(90% 80% at 85% 95%, rgba(214, 198, 170, 0.22), transparent 70%);
+}
+.paper::after {
+  background-image: var(--grain);
+  background-size: 480px 480px;
+  mix-blend-mode: multiply;
+  opacity: 0.42;
+}
+.screen > * { position: relative; z-index: 1; }
+
+.label {
+  font-family: var(--sans);
+  font-weight: 450;
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  font-size: 19px;
+  color: var(--ink-soft);
+}
+.serif { font-family: var(--serif); }
+.italic { font-style: italic; }
+.hand { font-family: var(--hand); color: var(--pen); }
+
+/* Photograph treatment shared by fronts and thumbnails. */
+.photo {
+  position: absolute;
+  overflow: hidden;
+  background: #b9b0a0;
+  box-shadow: 0 0 0 1px rgba(30, 43, 37, 0.08);
+}
+.photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(1.04) contrast(1.03) sepia(0.05);
+}
+.photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(140% 110% at 50% 40%, transparent 55%, rgba(24, 20, 14, 0.28) 100%),
+    linear-gradient(to top, rgba(18, 16, 12, 0.42), transparent 38%);
+  pointer-events: none;
+}
+.photo.clean::after { background: radial-gradient(140% 110% at 50% 40%, transparent 60%, rgba(24, 20, 14, 0.18) 100%); }
+
+.stamp, .postmark { position: absolute; }
+.stamp svg, .postmark svg { display: block; overflow: visible; }
+.postmark { mix-blend-mode: multiply; }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 25px;
+  letter-spacing: 0.04em;
+  padding: 0 38px;
+  height: 72px;
+}
+.pill.outline { border: 1.5px solid var(--ink); color: var(--ink); }
+.pill.solid { background: #1b1f1c; color: #f6f1e7; box-shadow: 0 10px 24px rgba(20, 18, 14, 0.22); }
+.arrow { display: inline-block; width: 26px; height: 14px; }

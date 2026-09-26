@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="../screens/shared.css">
+<style>
+  html, body { width: 1536px; height: 1024px; }
+  body { background: #000 var(--bg) center / cover no-repeat; }
+  body.overlay-only { background: transparent; }
+  .mark { position: absolute; left: 64px; top: 52px; color: #1e211d; }
+  .word { font: 400 64px/1 var(--serif); letter-spacing: -0.01em; }
+  .kicker { margin-top: 18px; font: 450 15px var(--sans); letter-spacing: .32em; text-transform: uppercase; }
+  .rule { width: 36px; height: 1px; background: currentColor; opacity: .5; margin: 22px 0 18px; }
+  .lines { font: 450 12.5px/1.9 var(--sans); letter-spacing: .34em; text-transform: uppercase; opacity: .8; }
+</style></head>
+<body><div class="mark"><div class="word" id="w"></div><div class="kicker" id="k"></div><div class="rule" id="r"></div><div class="lines" id="l"></div></div>
+<script src="../screens/shared.js"></script>
+<script>
+(async () => {
+  const { data, ed, background } = window.__POSTCARD__;
+  document.body.style.setProperty('--bg', `url("${background}")`);
+  document.getElementById('w').textContent = data.editorial.wordmark;
+  const k = document.getElementById('k');
+  if (ed.kicker) k.textContent = ed.kicker; else { k.remove(); document.getElementById('r').style.marginTop = '26px'; }
+  document.getElementById('l').innerHTML = ed.lines.map(PC.esc).join('<br>');
+  await document.fonts.ready;
+  const img = new Image(); img.src = background; await img.decode().catch(() => {});
+  window.__READY__ = true;
+})().catch((e) => (window.__ERROR__ = String(e)));
+</script></body></html>

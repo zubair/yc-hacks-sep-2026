@@ -1,0 +1,55 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="shared.css">
+<style>
+  .pane { position: absolute; top: 0; bottom: 0; width: var(--pw); }
+  .left { left: 0; } .right { right: 0; }
+  .gutter { position: absolute; top: 0; bottom: 0; left: var(--pw); width: var(--gap); background: #191b19; }
+  .note { position: absolute; left: 92px; top: 150px; width: 580px; height: 760px; overflow: hidden; transform: rotate(-1.6deg); transform-origin: 0 0; color: var(--pen); font-family: var(--hand); line-height: 1.62; white-space: pre-wrap; }
+  .note .sign { display: block; margin-top: 0.55em; padding-left: 1.6em; }
+  .write { position: absolute; left: 70px; bottom: 66px; display: flex; gap: 16px; align-items: center; font: 400 23px var(--sans); letter-spacing: .05em; color: var(--ink-soft); }
+  .vert { position: absolute; left: 34px; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: 0 0; white-space: nowrap; font: 450 14px var(--sans); letter-spacing: .5em; color: var(--ink-faint); translate: 0 170px; }
+  .stamp { right: 64px; top: 70px; transform: rotate(1.5deg); filter: drop-shadow(0 3px 6px rgba(0,0,0,.2)); }
+  .postmark { top: 84px; }
+  .addr { position: absolute; left: 104px; right: 70px; top: 548px; }
+  .addr .name { font: 400 96px/1.05 var(--serif); margin: 14px 0 22px; letter-spacing: -.01em; white-space: nowrap; }
+  .addr .rule { height: 1.5px; background: var(--ink-faint); margin-bottom: 22px; }
+  .addr .via { font-size: 20px; letter-spacing: .2em; }
+  .prep { position: absolute; right: 64px; bottom: 66px; }
+</style></head>
+<body><div class="screen paper" id="s">
+  <div class="pane left">
+    <div class="note" id="note"></div>
+    <div class="write"><span id="pencil"></span><span id="writeHint"></span></div>
+  </div>
+  <div class="gutter"></div>
+  <div class="pane right">
+    <div class="vert" id="vert"></div>
+    <div class="stamp" id="stamp"></div>
+    <div class="postmark" id="pm"></div>
+    <div class="addr"><div class="label" id="to"></div><div class="name" id="name"></div><div class="rule"></div><div class="label via" id="via"></div></div>
+    <div class="pill outline prep" id="prep"></div>
+  </div>
+</div>
+<script src="shared.js"></script>
+<script>
+PC.boot(async ({ data, geo, photoURL, nat }) => {
+  const s = document.getElementById('s');
+  s.style.setProperty('--w', geo.spread.width + 'px'); s.style.setProperty('--h', geo.spread.height + 'px');
+  s.style.setProperty('--pw', geo.pane.width + 'px'); s.style.setProperty('--gap', geo.spread.gap + 'px');
+  const note = document.getElementById('note');
+  note.innerHTML = `${PC.esc(data.message.salutation)}\n${PC.esc(data.message.body)}<span class="sign">${PC.esc(data.message.signoff)}</span>`;
+  PC.fitText(note, { max: 60, min: 22 });
+  document.getElementById('pencil').innerHTML = PC.pencilSVG();
+  document.getElementById('writeHint').textContent = data.copy.writeHint;
+  document.getElementById('vert').textContent = `POSTCARD · ${data.place.toUpperCase()}`;
+  document.getElementById('stamp').innerHTML = PC.stampSVG({ w: 170, h: 208, photoURL, nat, focus: data.photo.stampFocus, country: data.stamp.country, value: data.stamp.value, tone: 'color' });
+  const pm = document.getElementById('pm');
+  pm.innerHTML = PC.postmarkSVG({ r: 84, top: data.postmark.top, bottom: data.postmark.bottom, center: [data.dates.postmark], ink: data.theme.backPostmarkInk, waves: 'left', waveLength: 150, rotate: -4, seed: 11 });
+  PC.placePostmark(pm, { cx: geo.pane.width - 64 - 170 - 44, cy: 178, r: 84, waves: 'left', waveLength: 150 });
+  document.getElementById('to').textContent = data.copy.toLabel;
+  const name = document.getElementById('name'); name.textContent = data.recipient;
+  if (name.scrollWidth > name.clientWidth) name.style.fontSize = Math.max(44, 96 * name.clientWidth / name.scrollWidth) + 'px';
+  document.getElementById('via').textContent = data.copy.sendVia;
+  document.getElementById('prep').textContent = data.copy.prepare;
+});
+</script></body></html>

@@ -1,0 +1,21 @@
+{
+  "id": "cinque-terre",
+  "locale": "it-IT",
+  "sender": { "name": "Alex" },
+  "recipient": { "name": "Olivia" },
+  "place": { "name": "Cinque Terre", "country": "Italia" },
+  "date": "2024-05-14",
+  "message": {
+    "body": "Wish you were here.\nThe sea really is this blue."
+  },
+  "photo": {
+    "src": "../assets/photos/manarola.jpg",
+    "focus": [0.42, 0.55]
+  },
+  "stamp": { "country": "ITALIA", "value": "€1,20" },
+  "postmark": { "top": "CINQUE TERRE", "bottom": "ITALIA", "motto": "LA VITA È BELLA" },
+  "delivery": { "channel": "Messages", "options": ["Messages", "Printed card"] },
+  "scene": {
+    "book": ["ITALY", "ALWAYS", "A GOOD", "IDEA"]
+  }
+}
