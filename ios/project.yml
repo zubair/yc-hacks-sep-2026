@@ -1,0 +1,51 @@
+name: Postcard
+options:
+  bundleIdPrefix: com.postcard
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  PostcardCore:
+    path: ../packages/PostcardCore
+  PostcardServices:
+    path: ../packages/PostcardServices
+  PostcardMotion:
+    path: ../packages/PostcardMotion
+  PostcardUI:
+    path: ../packages/PostcardUI
+targets:
+  Postcard:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Features
+      - Platform
+    dependencies:
+      - package: PostcardCore
+      - package: PostcardServices
+      - package: PostcardMotion
+      - package: PostcardUI
+    settings:
+      base:
+        SWIFT_VERSION: 6.0
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_SUPABASE_URL: "$(SUPABASE_URL)"
+        INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY: "$(SUPABASE_PUBLISHABLE_KEY)"
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Choose a photo for a postcard."
+        CODE_SIGN_STYLE: Automatic
+        PRODUCT_BUNDLE_IDENTIFIER: com.postcard.app
+  PostcardUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - Tests/UI
+    dependencies:
+      - target: Postcard
+    settings:
+      base:
+        SWIFT_VERSION: 6.0
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.postcard.app.uitests

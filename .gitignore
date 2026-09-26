@@ -12,3 +12,4 @@ node_modules/
 .supabase/
 supabase/.temp/
 *.log
+ios/*.xcodeproj/
