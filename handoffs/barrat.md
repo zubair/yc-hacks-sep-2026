@@ -37,9 +37,9 @@ Validation on September 26, 2026:
 - `python3 packages/PostcardUI/Examples/test_rules.py`: 5 tests passed, 0 failures (draft guards, limits, username normalization, signup validation).
 - The actual Swift package built for a generic iOS Simulator against isolated sibling contract fixtures.
 - The generated harness built successfully for generic iOS Simulator with Xcode 27.1 and for Mac Catalyst with Xcode 27.0, including the final fixed bottom composer actions.
-- Manual Mac Catalyst checks: editing survives seal/reopen; opening and sealing keep send count at zero; explicit send increments it once and removes Send; inbox opens the received card; Read their note exposes the complete message; empty sign-in displays validation. Compact and wide layouts were visually inspected.
+- Manual Mac Catalyst checks: editing survives seal/reopen; opening and sealing keep send count at zero; explicit send increments it once and removes Send; inbox opens the received card; Read their note exposes the complete message; empty sign-in displays validation; valid fixture sign-in reaches its callback; valid fixture signup displays the email-confirmation notice. Compact and wide layouts were visually inspected.
 - Actual runtime reference images: `design/references/README.md`. These are Mac Catalyst captures, not Duo screenshots.
-- iPhone Duo / iOS 27.1 failed system startup with `Data Migration Failed` after `Waiting on BackBoard`. Installation and UI tests could not complete. Restarting the virtual device and the per-user CoreSimulator service did not resolve it. No device data was erased.
+- iPhone Duo / iOS 27.1 failed system startup with `Data Migration Failed` after `Waiting on BackBoard`. Installation and UI tests could not complete. Restarting the virtual device and the per-user CoreSimulator service did not resolve it. A fresh instance named `Postcard Duo Preview` also stalled at `Waiting on BackBoard`. No device data was erased.
 
 The committed UI test suite contains open/seal/send, keyboard/draft retention, receiving, signup confirmation, large type, offline retry, and wide-layout checks. Those UI tests have NOT passed yet: simulator boot blocked execution. Keyboard-visible iOS layout, full VoiceOver operation, and actual Duo folding remain unverified. Do not treat fixture builds as live integration success.
 
