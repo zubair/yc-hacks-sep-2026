@@ -22,6 +22,14 @@ export const TINY_JPEG = Buffer.from(
   'base64',
 );
 
+export const SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
+
+/** Service-role client for server-side checks (local only). */
+export function adminClient() {
+  if (!SECRET_KEY) throw new Error('Set SUPABASE_SECRET_KEY (from `supabase status`) for service-role tests.');
+  return createClient(API_URL, SECRET_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
 export function anonClient() {
   return createClient(API_URL, PUBLISHABLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 }

@@ -48,7 +48,7 @@ If image downloads fail from `public.ecr.aws`, run `export SUPABASE_INTERNAL_IMA
 
 ```sh
 cd tests/backend && npm install
-SUPABASE_PUBLISHABLE_KEY=<from supabase status> npm test     # expect 18 passing
+SUPABASE_PUBLISHABLE_KEY=<from supabase status> SUPABASE_SECRET_KEY=<from supabase status> npm test   # expect 27 passing
 ```
 
 ## 2. Hosted demo backend (owner does this once)
@@ -81,5 +81,5 @@ Future backend changes always go in a **new** migration file. Never edit one tha
 
 - Stay in your owned paths (`docs/OWNERSHIP.md`). Backend changes go through Zafar.
 - Never test against the hosted project with fake mass data. Use your local stack.
-- Photos: the app uploads a JPEG under 10 MB to `<your user id>/<draft id>/photo.jpg` before calling `send_postcard`. Signed photo links must request 5 minutes or less.
+- Photos: the app uploads a JPEG under 10 MB to `<your user id>/<draft id>/photo.jpg` (both UUIDs **lowercase**; Swift's `uuidString` is uppercase) before calling `send_postcard`. Signed photo links must request 5 minutes or less.
 - Problems: check `handoffs/zafar.md` for known limitations before filing a bug.
