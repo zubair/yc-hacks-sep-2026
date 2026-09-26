@@ -37,7 +37,7 @@ def parse_args():
 
 
 QUALITY = {
-    'draft': dict(still=(900, 600), anim=(640, 360), samples=24, anim_samples=16),
+    'draft': dict(still=(900, 600), anim=(640, 360), samples=24, anim_samples=12),
     'preview': dict(still=(1536, 1024), anim=(960, 540), samples=96, anim_samples=24),
     'final': dict(still=(3072, 2048), anim=(1920, 1080), samples=384, anim_samples=128),
 }
@@ -70,6 +70,7 @@ def configure_render(res, samples, transparent=False):
     sc.render.resolution_x, sc.render.resolution_y = res
     sc.render.resolution_percentage = 100
     sc.render.film_transparent = transparent
+    sc.render.use_persistent_data = True
     sc.render.image_settings.file_format = 'PNG'
     sc.render.image_settings.color_mode = 'RGBA' if transparent else 'RGB'
     sc.render.image_settings.color_depth = '8'
