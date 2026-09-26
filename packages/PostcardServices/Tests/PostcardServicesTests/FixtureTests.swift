@@ -6,7 +6,8 @@ final class FixtureTests: XCTestCase {
     func testSendRetryIsIdempotentAndFailurePreservesRequest() async throws {
         let service = FixturePostcardService()
         let draft = PostcardDraft(recipientId: FixturePostcardService.recipient.id,
-                                  recipientName: "Sam", senderName: "Alex", destination: "Paris", message: "Wish you were here")
+                                  recipientName: "Sam", senderName: "Alex", destination: "Paris", message: "Wish you were here",
+                                  photoData: Data([0xFF, 0xD8, 0xFF]))
         await service.failOneSend()
         do {
             _ = try await service.send(draft: draft)

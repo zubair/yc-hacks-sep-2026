@@ -29,11 +29,13 @@ struct PostcardApp: App {
                 }
             }
             .tint(PostcardTheme.accent)
+            .modifier(PostcardHingeObserver(model: model))
             .task { await model.start() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await model.refresh() } }
             }
             .photosPicker(isPresented: $isChoosingPhoto, selection: $selectedPhoto, matching: .images)
+            .onChange(of: isChoosingPhoto) { _, visible in model.setModalVisible(visible) }
             .onChange(of: selectedPhoto) { _, item in
                 guard let item else { return }
                 Task {
@@ -47,7 +49,9 @@ struct PostcardApp: App {
     }
 
     private var appContent: some View {
-        TabView(selection: $model.selectedTab) {
+        VStack(spacing: 0) {
+            if model.isDemo { demoBanner } else { accountBar }
+            TabView(selection: $model.selectedTab) {
             PostcardComposerView(
                 draft: $model.draft, presentationState: model.presentationState,
                 error: model.composerError, recipientLookupResult: model.lookupResult,
@@ -81,30 +85,60 @@ struct PostcardApp: App {
             }
             .tabItem { Label("Inbox", systemImage: "tray") }
             .tag(1)
-        }
-        .safeAreaInset(edge: .top) {
-            if model.isDemo {
-                HStack(spacing: 10) {
-                    Text("DEMO · simulated sends")
-                        .font(.caption.weight(.bold))
-                    Spacer()
-                    Button("View as \(model.profile?.id == FixturePostcardService.sender.id ? "Sam" : "Alex")") {
-                        Task { await model.switchDemoUser() }
-                    }
-                    .font(.caption.weight(.semibold))
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(PostcardTheme.accent)
-                .foregroundStyle(.white)
             }
         }
-        .toolbar {
-            if !model.isDemo {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sign out") { Task { await model.signOut() } }
+    }
+
+    private var demoBanner: some View {
+        HStack(spacing: 10) {
+            Text("DEMO · simulated sends")
+                .font(.caption.weight(.bold))
+            Spacer()
+            Button("View as \(model.profile?.id == FixturePostcardService.sender.id ? "Sam" : "Alex")") {
+                Task { await model.switchDemoUser() }
+            }
+            .font(.caption.weight(.semibold))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(PostcardTheme.accent.ignoresSafeArea(edges: .top))
+        .foregroundStyle(.white)
+    }
+
+    private var accountBar: some View {
+        HStack {
+            Text("Postcard")
+                .font(.system(.title3, design: .serif).bold())
+            Spacer()
+            Button("Sign out") { Task { await model.signOut() } }
+                .font(.subheadline.weight(.semibold))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .foregroundStyle(PostcardTheme.ink)
+        .background(PostcardTheme.paper.ignoresSafeArea(edges: .top))
+    }
+}
+
+private struct PostcardHingeObserver: ViewModifier {
+    @ObservedObject var model: PostcardAppModel
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 27.1, *) {
+            content.onHingeChange { _, context in
+                guard let hinge = context.hinge else { return }
+                switch hinge.status {
+                case .closed:
+                    model.receiveHinge(isOpen: false)
+                case .partiallyOpen, .fullyOpen:
+                    model.receiveHinge(isOpen: true)
+                default:
+                    break
                 }
             }
+        } else {
+            content
         }
     }
 }

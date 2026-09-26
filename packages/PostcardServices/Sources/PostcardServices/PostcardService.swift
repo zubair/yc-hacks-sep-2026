@@ -19,7 +19,8 @@ public enum PostcardValidation {
         guard draft.recipientId != nil else {
             throw PostcardServiceError.validation("Choose a recipient by username.")
         }
-        guard (1...5000).contains(draft.message.trimmingCharacters(in: .whitespacesAndNewlines).count) else {
+        guard !draft.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              draft.message.count <= 5000 else {
             throw PostcardServiceError.validation("Write a note between 1 and 5,000 characters.")
         }
         guard draft.senderName.count <= 100, draft.recipientName.count <= 100 else {
@@ -28,7 +29,10 @@ public enum PostcardValidation {
         guard draft.destination.count <= 200 else {
             throw PostcardServiceError.validation("Destination must be 200 characters or less.")
         }
-        guard (draft.photoData?.count ?? 0) <= 10_000_000 else {
+        guard let photo = draft.photoData, !photo.isEmpty else {
+            throw PostcardServiceError.validation("Choose a photo for your postcard.")
+        }
+        guard photo.count <= 10_000_000 else {
             throw PostcardServiceError.validation("Photo must be 10 MB or less.")
         }
     }

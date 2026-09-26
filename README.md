@@ -6,12 +6,12 @@ This `team/pranav` branch contains an integrated app implementation following th
 
 ## Run the fixture demo
 
-Requirements: Xcode 27, iOS 26.5 simulator, Swift 6.3, and XcodeGen 2.46. Earlier supported iOS versions can run the app, but the commands below were verified with iPhone 17 Pro on iOS 26.5.
+Requirements: Xcode 27.1 with the iOS 27.1 SDK and XcodeGen 2.46. On this machine the 27.1 Xcode app is in `~/Downloads/Xcode.app`. The app supports iOS 17 and later; Duo hinge input is available on iOS 27.1. The fixture flow was verified on iPhone 17 Pro (iOS 26.5), iPad mini (iOS 26.5), and iPhone Duo (iOS 27.1).
 
 ```sh
 cd ios
 xcodegen generate
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
+DEVELOPER_DIR="$HOME/Downloads/Xcode.app/Contents/Developer" xcodebuild \
   -project Postcard.xcodeproj -scheme Postcard \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
   CODE_SIGNING_ALLOWED=NO build
@@ -22,13 +22,17 @@ Open the generated project in Xcode and Run. With no Supabase build settings, th
 The UI test runs this send and recipient-inbox flow:
 
 ```sh
-export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+export DEVELOPER_DIR="$HOME/Downloads/Xcode.app/Contents/Developer"
 cd ios
 xcodegen generate
 xcodebuild -project Postcard.xcodeproj -scheme Postcard \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
   -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test
 ```
+
+For Duo, change the destination to `platform=iOS Simulator,name=iPhone Duo,OS=27.1`. Open and close the device in Bitrig's 3D simulator to drive Apple's `onHingeChange` events. An opening hinge reveals the message side; closing an opened draft seals it. The Open and Seal buttons work on every supported device, and folding never sends the postcard.
+
+The [iPhone](design/screenshots/iphone-17-pro-compose.png), [iPad](design/screenshots/ipad-mini-compose.png), and [Duo outer display](design/screenshots/duo-outer-compose.png) screenshots show the fixture compose screen.
 
 ## Run against local Supabase
 
@@ -56,12 +60,12 @@ To run the backend end-to-end suite against the local stack, install dependencie
 | Native app | `ios` | Draft persistence, photo conversion, account and navigation state |
 | Backend | `supabase` | Migration, RLS, Storage, RPCs, Realtime publication |
 
-The app has no print, payment, public-link, push delivery, or read-receipt feature. `Sent` means persisted by the RPC, not delivered or read. Duo hinge input is not wired because the installed iOS 27 SDK exposes no verified public hinge posture API; manual Open and Seal work on ordinary iPhones and the Duo simulator. [PostcardPostureController.swift](ios/Platform/PostcardPostureController.swift) is the narrow adapter point for a future documented device API.
+The app has no print, payment, public-link, push delivery, or read-receipt feature. `Sent` means persisted by the RPC, not delivered or read. [PostcardPostureController.swift](ios/Platform/PostcardPostureController.swift) maps both Apple hinge events and manual Open/Seal controls into the same state machine.
 
 ## Current verification
 
-- `swift test` passed for Core and Services on Swift 6.3.
-- Xcode simulator build passed on iPhone 17 Pro, iOS 26.5.
-- Zafar's branch reports 18 backend end-to-end checks passing against local Supabase; this merged branch still needs a fresh local run.
+- `swift test` passed for Core (1) and Services (5), including Zafar's recorded RPC responses and errors.
+- Xcode simulator build and the compose → send → recipient conversation UI test passed on iPhone 17 Pro, iOS 26.5. The Xcode 27.1 Duo build also passed.
+- Zafar's branch reports 18 backend end-to-end checks passing against local Supabase. A fresh run on this machine was blocked by Docker's internal DNS failing to resolve Docker Hub; the Swift adapter was checked against Zafar's recorded fixtures.
 
 See [handoffs/pranav.md](handoffs/pranav.md) for the exact implementation status and remaining integration checks.

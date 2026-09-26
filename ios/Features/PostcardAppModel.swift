@@ -110,6 +110,15 @@ final class PostcardAppModel: ObservableObject {
         presentationState = posture.state
     }
 
+    func receiveHinge(isOpen: Bool) {
+        posture.receivePosture(isOpen: isOpen)
+        presentationState = posture.state
+    }
+
+    func setModalVisible(_ visible: Bool) {
+        posture.isModalVisible = visible
+    }
+
     func send() async {
         guard presentationState == .sealed, !isBusy else { return }
         isBusy = true
@@ -162,9 +171,7 @@ final class PostcardAppModel: ObservableObject {
                 .sorted { $0.createdAt < $1.createdAt }
             conversationError = nil
             for item in messages {
-                if let path = item.photoPath {
-                    photoURLs[item.id] = try? await service.photoURL(path: path)
-                }
+                photoURLs[item.id] = try? await service.photoURL(path: item.photoPath)
             }
         } catch { conversationError = error.localizedDescription }
     }

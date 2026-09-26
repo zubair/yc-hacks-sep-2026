@@ -86,19 +86,16 @@ public actor FixturePostcardService: PostcardService {
             failNextSend = false
             throw PostcardServiceError.server("Demo failure. Retry the same draft.")
         }
-        let photoPath: String?
-        if let data = draft.photoData {
-            let path = "demo/\(draft.id.uuidString)/photo.jpg"
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("postcard-\(draft.id.uuidString).jpg")
-            try data.write(to: url, options: .atomic)
-            photos[path] = url
-            photoPath = path
-        } else { photoPath = nil }
+        let path = "demo/\(draft.id.uuidString)/photo.jpg"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("postcard-\(draft.id.uuidString).jpg")
+        guard let photo = draft.photoData else { throw PostcardServiceError.validation("Choose a photo for your postcard.") }
+        try photo.write(to: url, options: .atomic)
+        photos[path] = url
         let item = PostcardMessage(
             id: UUID(), conversationId: Self.conversationID, senderId: signedInProfile!.id,
             recipientId: draft.recipientId!, senderName: draft.senderName,
             recipientName: draft.recipientName, destination: draft.destination,
-            message: draft.message, photoPath: photoPath, createdAt: Date()
+            message: draft.message, photoPath: path, createdAt: Date()
         )
         stored.append(item)
         byRequest[draft.id] = item
@@ -132,8 +129,8 @@ public actor FixturePostcardService: PostcardService {
         if signedInProfile == nil { throw PostcardServiceError.unauthenticated }
     }
     private func validateAuth(email: String, password: String) throws {
-        guard email.contains("@"), password.count >= 6 else {
-            throw PostcardServiceError.validation("Enter a valid email and a password of at least six characters.")
+        guard email.contains("@"), password.count >= 8 else {
+            throw PostcardServiceError.validation("Enter a valid email and a password of at least eight characters.")
         }
     }
 }

@@ -2,6 +2,42 @@ import Foundation
 import PostcardCore
 import Supabase
 
+/// Supabase Postgres emits microsecond timestamps; Foundation's plain `.iso8601` strategy rejects them.
+enum PostcardWireCoding {
+    static func decoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let value = try decoder.singleValueContainer().decode(String.self)
+            let plain = ISO8601DateFormatter()
+            plain.formatOptions = [.withInternetDateTime]
+            if let dot = value.firstIndex(of: "."), value.hasSuffix("Z") {
+                let digits = value[value.index(after: dot)..<value.index(before: value.endIndex)]
+                let whole = String(value[..<dot]) + "Z"
+                if !digits.isEmpty, digits.allSatisfy(\.isNumber),
+                   let date = plain.date(from: whole),
+                   let fraction = TimeInterval("0." + digits) {
+                    return date.addingTimeInterval(fraction)
+                }
+            }
+            if let date = plain.date(from: value) { return date }
+            throw DecodingError.dataCorruptedError(
+                in: try decoder.singleValueContainer(), debugDescription: "Invalid ISO-8601 date: \(value)"
+            )
+        }
+        return decoder
+    }
+
+    static func timestamp(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let totalMicroseconds = Int64((date.timeIntervalSince1970 * 1_000_000).rounded())
+        let seconds = totalMicroseconds / 1_000_000
+        let fraction = totalMicroseconds % 1_000_000
+        let base = formatter.string(from: Date(timeIntervalSince1970: TimeInterval(seconds)))
+        return String(base.dropLast()) + String(format: ".%06dZ", fraction)
+    }
+}
+
 /// Live service backed by Supabase Auth, RPC, Storage, and Realtime.
 /// Construct with a project URL and publishable key; never pass a service-role key to an app.
 public actor SupabasePostcardService: PostcardService {
@@ -10,9 +46,7 @@ public actor SupabasePostcardService: PostcardService {
 
     public init(url: URL, publishableKey: String) {
         client = SupabaseClient(supabaseURL: url, supabaseKey: publishableKey)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        self.decoder = decoder
+        decoder = PostcardWireCoding.decoder()
     }
 
     public func currentProfile() async throws -> PostcardProfile? {
@@ -78,28 +112,24 @@ public actor SupabasePostcardService: PostcardService {
     public func send(draft: PostcardDraft) async throws -> PostcardMessage {
         try PostcardValidation.validate(draft)
         guard let recipientId = draft.recipientId else { throw PostcardServiceError.validation("Choose a recipient.") }
-        let photoPath: String?
-        if let photo = draft.photoData {
+        guard let photo = draft.photoData else { throw PostcardServiceError.validation("Choose a photo for your postcard.") }
+        let photoPath: String
+        do {
+            let user = try await client.auth.session.user
+            let path = "\(user.id.uuidString.lowercased())/\(draft.id.uuidString.lowercased())/photo.jpg"
             do {
-                let user = try await client.auth.session.user
-                let path = "\(user.id.uuidString.lowercased())/\(draft.id.uuidString.lowercased())/photo.jpg"
-                do {
-                    try await client.storage.from("postcard-photos").upload(
-                        path, data: photo, options: FileOptions(contentType: "image/jpeg", upsert: false)
-                    )
-                } catch {
-                    // An earlier attempt can have uploaded the same draft photo before its RPC failed.
-                    // Only an already-existing object at this exact owned path is retryable.
-                    let storageError = error as? StorageError
-                    guard storageError?.statusCode == "409" else {
-                        throw error
-                    }
+                try await client.storage.from("postcard-photos").upload(
+                    path, data: photo, options: FileOptions(contentType: "image/jpeg", upsert: false)
+                )
+            } catch {
+                // Storage returns HTTP 400 with an embedded 409 code for an existing object.
+                let storageError = error as? StorageError
+                guard storageError?.statusCode == "409" else {
+                    throw error
                 }
-                photoPath = path
-            } catch { throw Self.map(error) }
-        } else {
-            photoPath = nil
-        }
+            }
+            photoPath = path
+        } catch { throw Self.map(error) }
         do {
             let params = SendParams(
                 p_recipient_id: recipientId, p_sender_name: draft.senderName,
@@ -156,7 +186,7 @@ public actor SupabasePostcardService: PostcardService {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(p_conversation_id, forKey: .p_conversation_id)
             if let p_before {
-                try container.encode(ISO8601DateFormatter().string(from: p_before), forKey: .p_before)
+                try container.encode(PostcardWireCoding.timestamp(p_before), forKey: .p_before)
             } else {
                 try container.encodeNil(forKey: .p_before)
             }
@@ -171,11 +201,11 @@ public actor SupabasePostcardService: PostcardService {
         let p_recipient_name: String
         let p_destination: String
         let p_message: String
-        let p_photo_path: String?
+        let p_photo_path: String
         let p_client_request_id: UUID
     }
 
-    private static func map(_ error: Error) -> PostcardServiceError {
+    static func map(_ error: Error) -> PostcardServiceError {
         if let known = error as? PostcardServiceError { return known }
         if let urlError = error as? URLError,
            [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotConnectToHost].contains(urlError.code) {
@@ -183,10 +213,10 @@ public actor SupabasePostcardService: PostcardService {
         }
         if let postgrest = error as? PostgrestError {
             switch postgrest.code {
-            case "22023", "23514", "23505": return .validation(postgrest.message)
-            case "28000": return .unauthenticated
-            case "42501": return .forbidden
-            case "P0002", "PGRST116": return .notFound
+            case "PT401", "42501", "PGRST301", "PGRST303": return .unauthenticated
+            case "PT403": return .forbidden
+            case "PT404", "PGRST116": return .notFound
+            case "PT409", "PT422", "22023", "23514", "23505": return .validation(postgrest.message)
             default: return .server("Please try again.")
             }
         }
@@ -195,6 +225,7 @@ public actor SupabasePostcardService: PostcardService {
             case "401": return .unauthenticated
             case "403": return .forbidden
             case "404": return .notFound
+            case "400", "415": return .validation(storage.message)
             case "413": return .validation("Photo must be 10 MB or less.")
             default: return .server("Photo could not be saved. Please try again.")
             }

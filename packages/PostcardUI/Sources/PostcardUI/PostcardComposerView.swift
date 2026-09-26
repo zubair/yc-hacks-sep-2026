@@ -121,35 +121,39 @@ public struct PostcardComposerView: View {
     }
 
     private var front: some View {
-        ZStack {
-            Rectangle().fill(PostcardTheme.ink)
-            if let data = draft.photoData, let image = UIImage(data: data) {
-                Image(uiImage: image).resizable().scaledToFill().frame(maxWidth: .infinity).clipped()
-                    .accessibilityLabel("Selected postcard photo")
-            } else {
-                VStack(spacing: 12) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 44, weight: .ultraLight))
-                    Text("Your favorite view goes here")
-                        .font(.system(.title3, design: .serif))
+        GeometryReader { geometry in
+            ZStack {
+                Rectangle().fill(PostcardTheme.ink)
+                if let data = draft.photoData, let image = UIImage(data: data) {
+                    Image(uiImage: image).resizable().scaledToFill()
+                        .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+                        .accessibilityLabel("Selected postcard photo")
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 44, weight: .ultraLight))
+                        Text("Your favorite view goes here")
+                            .font(.system(.title3, design: .serif))
+                    }
+                    .foregroundStyle(PostcardTheme.paper)
                 }
-                .foregroundStyle(PostcardTheme.paper)
-            }
-            VStack {
-                Spacer()
-                HStack {
-                    Text(draft.destination.isEmpty ? "SOMEWHERE WONDERFUL" : draft.destination.uppercased())
-                        .font(.caption.weight(.semibold))
-                        .tracking(1.5)
+                VStack {
                     Spacer()
+                    HStack {
+                        Text(draft.destination.isEmpty ? "SOMEWHERE WONDERFUL" : draft.destination.uppercased())
+                            .font(.caption.weight(.semibold))
+                            .tracking(1.5)
+                        Spacer()
+                    }
+                    .padding(14)
+                    .foregroundStyle(.white)
+                    .background(.black.opacity(0.48))
                 }
-                .padding(14)
-                .foregroundStyle(.white)
-                .background(.black.opacity(0.48))
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .shadow(color: .black.opacity(0.15), radius: 14, y: 6)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 4))
-        .shadow(color: .black.opacity(0.15), radius: 14, y: 6)
     }
 
     private var back: some View {
@@ -248,7 +252,7 @@ public struct PostcardComposerView: View {
             if presentationState == .sealed {
                 Button("Send postcard") { isNoteFocused = false; onSend() }
                     .buttonStyle(PaperButtonStyle(prominent: true))
-                    .disabled(draft.recipientId == nil || draft.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(draft.recipientId == nil || draft.photoData == nil || draft.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             if presentationState == .sending { ProgressView("Sending postcard") }
         }

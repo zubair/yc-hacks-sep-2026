@@ -6,7 +6,7 @@ final class ModelTests: XCTestCase {
         let message = PostcardMessage(
             id: UUID(), conversationId: UUID(), senderId: UUID(), recipientId: UUID(),
             senderName: "A", recipientName: "B", destination: "Paris", message: "Hello",
-            photoPath: nil, createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+            photoPath: "photo.jpg", createdAt: Date(timeIntervalSince1970: 1_800_000_000)
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

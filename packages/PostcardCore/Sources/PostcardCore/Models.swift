@@ -58,13 +58,13 @@ public struct PostcardMessage: Codable, Equatable, Hashable, Sendable, Identifia
     public let recipientName: String
     public let destination: String
     public let message: String
-    public let photoPath: String?
+    public let photoPath: String
     public let createdAt: Date
 
     public init(
         id: UUID, conversationId: UUID, senderId: UUID, recipientId: UUID,
         senderName: String, recipientName: String, destination: String,
-        message: String, photoPath: String?, createdAt: Date
+        message: String, photoPath: String, createdAt: Date
     ) {
         self.id = id
         self.conversationId = conversationId

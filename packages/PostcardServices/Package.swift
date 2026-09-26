@@ -11,6 +11,6 @@ let package = Package(
     ],
     targets: [
         .target(name: "PostcardServices", dependencies: ["PostcardCore", .product(name: "Supabase", package: "supabase-swift")]),
-        .testTarget(name: "PostcardServicesTests", dependencies: ["PostcardServices"])
+        .testTarget(name: "PostcardServicesTests", dependencies: ["PostcardServices", .product(name: "Supabase", package: "supabase-swift")])
     ]
 )

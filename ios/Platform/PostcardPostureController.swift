@@ -2,8 +2,7 @@ import Foundation
 import UIKit
 import PostcardCore
 
-/// The manual buttons are the shipping posture source. A device adapter can call
-/// `receivePosture` once a public, verified Duo hinge API is available.
+/// Maps Apple's Duo hinge status and manual controls to one postcard state machine.
 @MainActor
 final class PostcardPostureController {
     private(set) var state: PostcardPresentationState = .front
