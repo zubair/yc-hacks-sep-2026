@@ -93,7 +93,7 @@ The app observes Apple's `onHingeChange` where iOS 27.1 is available. Build Duo 
 
 Deployment and gating (accepted at integration): the app target is iOS 17.0, the same as the packages. The Duo APIs the app uses are declared `@available(anyAppleOS 27.1)` in the iOS 27.1 SDK: `onHingeChange`/`DeviceHinge`, `ArrangementView` with `.split`, `GeometryProxy.reservedRegions`, `ToolbarItem.axisBehavior`/`visibilityPriority`, and `ToolbarOverflowMenu`. Each use is inside `if #available(iOS 27.1, *)` or an `@available(iOS 27.1, *)` declaration. Only `ios/Platform/HingePosture.swift` touches the hinge API. On iOS 17 to 27.0 and on phones without a hinge, the same controller is driven only by the Open and Seal buttons, and the app uses a standard navigation toolbar.
 
-Draft entry: Write and Reply resume an unsent stored draft, and Reply fills in the recipient when the draft has none. They never discard a draft. A new id is issued only after a confirmed send.
+Draft entry: Write and Reply resume an unsent draft that has content, and never discard it. Reply readdresses a resumed draft to the conversation peer unless the draft is sealed. A new draft, with a new id, starts only when the current one is blank or has just been sent.
 
 ## Configuration
 

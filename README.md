@@ -1,72 +1,200 @@
 # Postcard
 
-Postcard turns a photo and a personal note into a direct postcard between two accounts. The iOS app supports exact-username recipient lookup, a photographic front and message back, manual open/seal controls, explicit sending, an inbox and conversations. A credential-free demo runs the same flow with simulated messages. Real mode uses Supabase Auth, private Storage, Realtime invalidation, and transactional RPCs.
+Postcard is an iOS app for sending a photo and a short note to someone you know, presented as a postcard. You look up a recipient by exact username, choose a photo for the front, and write on the back. Opening the card starts writing and closing it seals the card. Sending is always an explicit tap. The recipient reads the postcard in their inbox.
 
-This `team/pranav` branch contains an integrated app implementation following the request to complete the whole app. The original ownership plan remains in [docs/OWNERSHIP.md](docs/OWNERSHIP.md).
+On the iPhone Duo (iOS 27.1), unfolding the device opens the card and folding it seals the card. On any other iPhone running iOS 17 or later, **Open** and **Seal** buttons do the same. Folding never sends.
 
-## Run the fixture demo
+The backend is Supabase: Auth, a private Storage bucket, transactional RPCs, and a Realtime refetch signal, all under row-level security. A credential-free fixture mode runs the complete flow on the device with simulated sends.
 
-Requirements: Xcode 27.1 with the iOS 27.1 SDK and XcodeGen 2.46. On this machine the 27.1 Xcode app is in `~/Downloads/Xcode.app`. The app supports iOS 17 and later; Duo hinge input is available on iOS 27.1.
+Scope: direct account-to-account postcards. "Sent" means stored by the backend, not delivered or read. Printed cards, payments, public links, push notifications, and read receipts are out of scope for v1 (see [docs/PRODUCT.md](docs/PRODUCT.md)).
+
+## 60-second demo (fixture mode, no credentials)
+
+1. Generate the project and open it: `cd ios && xcodegen generate && open Postcard.xcodeproj`. Choose the **iPhone Duo** simulator or any iPhone simulator, then Run. Without `ios/Config/Local.xcconfig`, the app runs in fixture mode and labels every screen as a demo.
+2. The app opens signed in as **Alex Rivera** with an empty inbox.
+3. Tap **Write**, type `sam`, find the user, and select **Sam Lee**. A bundled sample photo is already on the front.
+4. Tap **Open**, or unfold the Duo in Bitrig, and write a note on the back.
+5. Tap **Seal**, or fold the Duo. Nothing has been sent yet.
+6. Tap **Send**. The composer shows the sent state, and the postcard is stored in the in-memory fixture.
+7. Go back. The inbox lists Sam Lee.
+8. Choose **Demo → View as Sam Lee**, open the Alex Rivera conversation, and tap **Read their note**. The photo and note appear.
+9. Optional: **Demo → Fail the next send** shows the error and Retry path, which stores the postcard exactly once. **Demo → Simulate offline** shows the retryable offline inbox.
+
+The `PostcardUITests` target runs the same flow automatically; see [ios/README.md](ios/README.md).
+
+## Setup
+
+Requirements:
+
+- **iOS:** Xcode 27.1 with the iOS 27.1 SDK. Xcode 27.0 cannot compile the Duo APIs.
+- **Project generator:** XcodeGen 2.44 or later.
+- **Backend:** Docker, the Supabase CLI (tested with 2.118.0), and Node 20 or later.
+- **Package tests on macOS or Linux:** a Swift 6 toolchain.
+
+### iOS app
 
 ```sh
 cd ios
 xcodegen generate
-DEVELOPER_DIR="$HOME/Downloads/Xcode.app/Contents/Developer" xcodebuild \
-  -project Postcard.xcodeproj -scheme Postcard \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
-  CODE_SIGNING_ALLOWED=NO build
-```
+export DEVELOPER_DIR=$HOME/Downloads/Xcode.app/Contents/Developer   # only if Xcode 27.1 is not xcode-select'ed
 
-Open the generated project in Xcode and Run. With no local configuration file, the app enters fixture mode and labels it `DEMO · simulated sends`. A generated sample travel photo is preselected. Start as Alex, search for `sam`, select Sam Lee, open the postcard, write a note, seal it, then tap **Preview sending**. Open Inbox and use **View as Sam** to see the recipient side. A send is simulated only after the send button is tapped. A failed send retains the same draft and request ID for retry.
+xcodebuild -project Postcard.xcodeproj -scheme Postcard -sdk iphonesimulator \
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 
-The UI test runs this send and recipient-inbox flow:
-
-```sh
-export DEVELOPER_DIR="$HOME/Downloads/Xcode.app/Contents/Developer"
-cd ios
-xcodegen generate
+# PostcardAppTests and PostcardUITests
 xcodebuild -project Postcard.xcodeproj -scheme Postcard \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
+  -destination 'platform=iOS Simulator,name=iPhone Duo' \
   -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test
 ```
 
-For Duo, change the destination to `platform=iOS Simulator,name=iPhone Duo,OS=27.1`. The iOS 27.1 build uses Apple's `onHingeChange` events when available. An opening hinge reveals the message side; closing an opened draft seals it. The Open and Seal buttons work on every supported device, and folding never sends the postcard. Bitrig provides a 3D Duo simulator for physical fold checks.
+To test the button fallback, use an ordinary iPhone destination, for example `'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'`.
 
-The [iPhone](design/screenshots/iphone-17-pro-compose.png), [iPad](design/screenshots/ipad-mini-compose.png), and [Duo outer display](design/screenshots/duo-outer-compose.png) screenshots show the fixture compose screen. Barrat's [visual system](design/SYSTEM.md) and [reference screens](design/references/README.md) document the UI.
-
-## Run against local Supabase
-
-The app uses the [official Supabase Swift SDK](https://github.com/supabase/supabase-swift) pinned to 2.55.2. Docker and the Supabase CLI must be available. From the repo root:
+### Swift packages
 
 ```sh
-SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io npx supabase start
-npx supabase status
+(cd packages/PostcardCore && swift test)
+(cd packages/PostcardServices && swift test)       # fixture + recorded wire-contract tests; live tests skip without env
+(cd packages/PostcardUI && xcodebuild -scheme PostcardUI \
+   -destination 'platform=iOS Simulator,name=iPhone Duo' test)   # iOS-only package
+python3 packages/PostcardUI/Examples/test_rules.py              # form rules, no simulator
 ```
 
-Use the local API URL and **anon/publishable** key from the CLI. Copy [LocalConfig.plist.example](ios/Config/LocalConfig.plist.example) to `ios/Config/LocalConfig.plist` and fill `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`, then regenerate the Xcode project. This populated file is ignored by Git. Never put a service-role key in the app. Sign up with an email, password, lowercase username, and display name. When email confirmation is enabled, confirm the email before signing in. Use separate test accounts for a real local send and inbox check. A local simulator can reach `http://127.0.0.1:54321` on the host.
+### Local Supabase backend
 
-The [Supabase migrations](supabase/migrations) create auth-linked profiles, private two-person conversations, immutable postcards, sender-scoped idempotency, constrained RPCs, photo policies, and a Realtime publication. `send_postcard` stores the message and pair atomically. A client upload uses `<sender UUID>/<draft UUID>/photo.jpg`; retries reuse that path without overwriting the stored object. Signed photo URLs last five minutes. The app refetches on Realtime events, on foregrounding, and periodically while subscribed; it deduplicates displayed messages by UUID. See [backend/README.md](backend/README.md) for setup, wire fixtures, error mapping, and local tests.
+```sh
+# From the repo root. Use docker.io if public.ecr.aws is blocked.
+SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io supabase start \
+  -x imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+supabase db reset          # applies supabase/migrations and seeds local users alice/bob/eve
+supabase status -o env     # API URL and publishable key
 
-To run the backend end-to-end suite against the local stack, install dependencies in `tests/backend`, then run `SUPABASE_PUBLISHABLE_KEY=<key from supabase status> npm test` there. The suite covers Auth, Storage, RPCs, RLS, retries, and Realtime.
+cd tests/backend && npm install
+SUPABASE_PUBLISHABLE_KEY=<publishable key> npm test
+```
+
+### Live Swift contract test (local stack only)
+
+`LiveSupabaseTests` runs `SupabasePostcardService` against the running local stack. It creates throwaway users, uploads, sends, reads, and checks realtime. It refuses any host other than `127.0.0.1` and `localhost`, and it also runs on Linux.
+
+```sh
+cd packages/PostcardServices
+POSTCARD_LIVE_SUPABASE_URL=http://127.0.0.1:54321 \
+POSTCARD_LIVE_SUPABASE_PUBLISHABLE_KEY=<publishable key> \
+swift test --filter LiveSupabaseTests
+```
+
+### App in live mode (local Supabase)
+
+```sh
+cp ios/Config/Local.xcconfig.example ios/Config/Local.xcconfig   # gitignored
+# Edit: SUPABASE_URL = http:/$()/127.0.0.1:54321   and   SUPABASE_PUBLISHABLE_KEY = <publishable key>
+cd ios && xcodegen generate
+```
+
+Sign in as a seeded local user (`alice@postcard.test`, `bob@postcard.test`, or `eve@postcard.test`, password `postcard-local-1`), or sign up. Use two simulators or accounts to see both sides. `-forceDemo` keeps fixture mode even with this file present.
+
+## Configuration
+
+| Name | Where | Used by | Notes |
+|---|---|---|---|
+| `SUPABASE_URL` | `ios/Config/Local.xcconfig` (ignored), `backend/.env` (ignored) | App, backend tests | Empty or absent in the app means fixture mode |
+| `SUPABASE_PUBLISHABLE_KEY` | same | App, backend tests | Publishable key only. It is the only key the app ever gets. |
+| `SUPABASE_SECRET_KEY` | `backend/.env` (ignored) | `backend/scripts/cleanup-orphans.mjs` | Server jobs only. Never in the app, never committed. |
+| `SUPABASE_DB_URL` | environment | `tests/backend` | Defaults to the local stack |
+| `POSTCARD_LIVE_SUPABASE_URL`, `POSTCARD_LIVE_SUPABASE_PUBLISHABLE_KEY` | environment | `LiveSupabaseTests` | Opt-in; local hosts only |
+| `-forceDemo`, `-resetDemo` | launch arguments | App | Force fixture mode; clear the stored draft |
+
+The committed `ios/Config/Postcard.xcconfig` has empty values and includes `Local.xcconfig`. Examples are in `ios/Config/Local.xcconfig.example` and `backend/.env.example`.
 
 ## Architecture
 
-| Area | Path | Purpose |
-| --- | --- | --- |
-| Shared types | `packages/PostcardCore` | Codable, Sendable wire models and error states |
-| Client services | `packages/PostcardServices` | Shared protocol, deterministic fixture, Supabase adapter |
-| Motion | `packages/PostcardMotion` | Reusable flip and seal effects |
-| Screens | `packages/PostcardUI` | Compose, inbox, conversation, auth views |
-| Native app | `ios` | Draft persistence, photo conversion, account and navigation state |
-| Backend | `supabase` | Migration, RLS, Storage, RPCs, Realtime publication |
+```
+Swift packages (packages/, iOS 17+; arrows point at dependencies)
+  PostcardCore       models, PostcardPresentationState, PostcardServiceError      (no dependencies)
+  PostcardMotion     PostcardFlipContainer, PostcardSealEffect                    (no dependencies)
+  PostcardServices ─▶ Core, supabase-swift 2.55.2
+                     PostcardService protocol, SupabasePostcardService, FixturePostcardService
+  PostcardUI ──────▶ Core, Motion
+                     PostcardComposerView, PostcardInboxView, PostcardConversationView, PostcardAuthView
+  ios/ app ────────▶ all four
 
-The app has no print, payment, public-link, push delivery, or read-receipt feature. `Sent` means persisted by the RPC, not delivered or read. [DuoStateController.swift](ios/Platform/DuoStateController.swift) maps both Apple hinge events and manual Open/Seal controls into the same state machine. [PostcardCoordinator.swift](ios/Features/PostcardCoordinator.swift) owns drafts, cancellation, inbox refresh, and session state.
+App layers (ios/, iOS 17.0 target; Duo APIs gated on iOS 27.1)
+  App/        PostcardApp → AppEnvironment (composition root: fixture | Supabase, demo controls)
+              → RootView (loading | auth | main | can't-connect) → Inbox → Compose | Conversation
+  Features/   SessionCoordinator · ComposeViewModel (the only send path) · InboxViewModel (realtime refetch)
+              ConversationViewModel (merge by UUID, signed URLs, photo bytes)
+              PostcardPresentationController (front → writing → sealed → sending → sent; never sends)
+  Platform/   HingePosture (onHingeChange, 27.1-gated) · DraftStore · PhotoImporter · Haptics · AppConfiguration
 
-## Current verification
+Backend (supabase/, live mode)
+  app ──publishable key + user JWT──▶ Supabase
+    Auth        email/password; profile created from signup metadata (username, display_name)
+    Storage     private postcard-photos/<uid>/<draft id>/photo.jpg, JPEG ≤ 10 MB, no overwrite
+    RPC         lookup_recipient · list_conversations · list_messages · send_postcard (atomic, idempotent per draft id)
+    Realtime    postgres_changes INSERT on postcards → app refetches the conversation
+    Postgres    profiles · conversations · conversation_members · postcards (immutable), all under RLS
+```
 
-- `swift test` passed for Core (1) and Services (5), including Zafar's recorded RPC responses and errors.
-- The combined Xcode app builds for iPhone Duo on iOS 27.1. Eleven app tests and the iPhone 17 Pro simulator UI flow passed; the flow covers compose → send → recipient conversation, including the received note. Five shared UI package tests passed on the Duo simulator. The integrated app was captured on iPhone, iPad, and Duo displays.
-- Zafar's branch reports 18 backend end-to-end checks passing against local Supabase. A fresh run on this machine was blocked by Docker's internal DNS failing to resolve Docker Hub; the Swift adapter was checked against Zafar's recorded fixtures.
-- The native hinge API compiles and the posture state machine is tested. Physical fold input in Bitrig has not yet been verified with this integrated app.
+The contracts are in [docs/CONTRACTS.md](docs/CONTRACTS.md). The backend design and error mapping are in [backend/README.md](backend/README.md). App internals are in [ios/README.md](ios/README.md). The visual system is in [design/SYSTEM.md](design/SYSTEM.md) and [design/MOTION.md](design/MOTION.md).
 
-See [handoffs/pranav.md](handoffs/pranav.md) for the exact implementation status and remaining integration checks.
+## Team ownership
+
+| Owner | Paths | Delivered |
+|---|---|---|
+| Zafar | `supabase/`, `backend/`, `tests/backend/` | Schema, RLS and storage policies, RPCs, realtime publication, 18 end-to-end tests, recorded wire fixtures |
+| Pranav | `packages/PostcardCore/`, `packages/PostcardServices/`, `packages/PostcardMotion/` | Shared models, Supabase adapter, fixture service, flip and seal motion |
+| Barrat | `packages/PostcardUI/`, `design/` | Four screens, visual system, accessibility, motion choreography, assets |
+| Zubair | `ios/` (App, Platform, Features, Config, Tests/App, project.yml) | App shell, Duo presentation controller, view models, draft persistence, photo import, Duo layouts |
+| Integration | root docs, `docs/CONTRACTS.md`, `ios/Tests/UI`, cross-cutting fixes | Merges, contract reconciliation, stub removal, availability gating, demo controls, live contract test |
+
+The details are in `handoffs/<owner>.md` and [handoffs/integration.md](handoffs/integration.md).
+
+## Verification status
+
+Results marked `TBD` are to be filled in by the integration lead from actual runs. Fixture success does not prove live integration.
+
+| Suite | Environment | Result |
+|---|---|---|
+| Backend end-to-end (`tests/backend`, 18 tests) | Local Supabase, CLI 2.118.0, Linux container | 18/18 pass |
+| Backend end-to-end after the signed-upload-URL fix (new migration and test) | Local Supabase | TBD |
+| `PostcardCore` `swift test` | TBD | TBD |
+| `PostcardServices` `swift test` (fixture and wire contract) | TBD | TBD |
+| `PostcardServices` `LiveSupabaseTests` | Local Supabase, Linux | TBD |
+| `PostcardUI` package tests | iPhone Duo simulator | TBD |
+| `PostcardUI` form rules (`test_rules.py`) | Python 3 | TBD |
+| App build (Xcode 27.1, generic iOS Simulator) | TBD | TBD |
+| `PostcardAppTests` | iPhone Duo, iOS 27.1 | TBD |
+| `PostcardUITests` (fixture flow, retry, offline) | iPhone Duo, iOS 27.1 | TBD |
+| `PostcardUITests`, button fallback | iPhone, iOS earlier than 27.1 | TBD |
+| App live mode, two-account send and receive | Local Supabase | TBD |
+| Physical fold in Bitrig 3D Duo simulator | Bitrig | TBD |
+| Hosted Supabase | none | Not deployed |
+
+## Screenshots
+
+Captures of the integrated app go in `design/screenshots/integration/`. Planned captures (TBD):
+
+- `inbox-empty.png`: fixture inbox with the demo label
+- `compose-front.png`: recipient selected, sample photo on the front
+- `compose-writing.png`: the open card with the note on the back
+- `compose-sealed.png`: the sealed card with Send enabled
+- `compose-sent.png`: the sent state
+- `recipient-conversation.png`: Sam's view of the received postcard and note
+- `send-failed.png`: a send error with Retry and the draft preserved
+- `offline-inbox.png`: the offline inbox with Retry
+- `duo-inner-split.png`: iPhone Duo inner display with the compose stage
+- `iphone-buttons.png`: an ordinary iPhone with the Open and Seal buttons
+
+Earlier captures in `design/screenshots/*.png` and `design/references/` predate the final app shell.
+
+## Known limitations
+
+- **Duo hardware:** the hinge path is unit-tested through the controller, and the APIs compile against the iOS 27.1 SDK. A physical fold has not been validated on hardware, or in Bitrig's 3D simulator with this integrated build.
+- **Hosted Supabase:** not deployed. Live mode has been exercised only against a local stack. Deploying requires separate authorization; see "Next steps" in [handoffs/integration.md](handoffs/integration.md).
+- **Security review:** one medium finding is in progress. A signed upload URL created before send could overwrite the sent photo; the fix is a new migration and test. The low and informational notes are listed in the integration handoff.
+- **Not built:** push notifications, read receipts, printing, payments, and public links.
+- **No pagination UI.** A conversation shows the newest 50 messages. The RPC supports `p_before`, but messages that share the boundary microsecond can be skipped.
+- **Photos:** the server checks bucket size and declared MIME type, not image bytes or pixel dimensions; the client enforces 10 MB and 20 MP. Signed photo URLs expire after 5 minutes, and the app requests fresh ones on refresh.
+- **Signup:** an invalid or taken username fails with a generic Auth error from GoTrue, so the client pre-validates `^[a-z0-9_]{3,30}$`. The local stack allows 6-character passwords; hosted projects should require 8 or more.
+- **Layout:** the app target is iPhone only (device family 1). The palette is light paper in both appearances.
+- **Fixture data:** two accounts (Alex and Sam) and one conversation, all in memory. Demo messages reset on relaunch; the draft persists unless the app is launched with `-resetDemo`.

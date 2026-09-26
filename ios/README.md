@@ -1,76 +1,126 @@
-# Postcard iOS app (Zubair — `team/zubair`)
+# Postcard iOS app
 
-Native SwiftUI shell, Duo hinge controller, view models, persistence, and wiring for the four shared packages. Owned paths per `docs/OWNERSHIP.md`: `ios/App`, `ios/Platform`, `ios/Features`, `ios/project.yml`, `ios/Config`, `ios/Tests/App`.
+Native SwiftUI app shell, Duo presentation controller, view models, draft persistence, and wiring for the four local packages. Zubair owns `ios/App`, `ios/Platform`, `ios/Features`, `ios/project.yml`, `ios/Config`, and `ios/Tests/App` (see `docs/OWNERSHIP.md`). The integration branch added `ios/Tests/UI`.
 
-## Toolchain (verified 2026-09-26)
+## Toolchain
 
 | Item | Value |
 |---|---|
-| Xcode | 27.1 (27A9269), iOS 27.1 SDK. On this Mac it lives at `~/Downloads/Xcode.app`; `/Applications/Xcode.app` is 27.0 and lacks the Duo APIs |
-| Simulator | iOS 27.1 runtime `24A94401`, device type **iPhone Duo** |
-| Generator | XcodeGen 2.44 from `ios/project.yml` |
-| Bitrig | 0.26.1, opens `ios/` in place and builds `Postcard.xcodeproj`; its Duo simulator has the Fold controls |
+| Xcode | 27.1 (27A9269) with the iOS 27.1 SDK. It is needed to compile the Duo APIs. On the dev Mac it is `~/Downloads/Xcode.app`; `/Applications/Xcode.app` there is 27.0 and cannot build the app. |
+| Generator | XcodeGen 2.44 or later, reading `ios/project.yml`. The generated `Postcard.xcodeproj` and `App/Info.plist` are gitignored. |
+| App deployment target | iOS 17.0, the same as the packages |
+| Simulators | **iPhone Duo** on the iOS 27.1 runtime for hinge and vertical-bar behavior. Any iOS 17+ iPhone, for example iPhone 17 Pro on iOS 26.5, for the button fallback. |
+| Bitrig | 0.26.1. It opens `ios/` in place, and its iPhone Duo simulator has Fold controls (Closed / Partially Open / Fully Open). |
 
-Duo APIs compiled in this target: `onHingeChange` / `DeviceHinge` (status + angle), `ToolbarItem.axisBehavior`, `visibilityPriority`, `ToolbarOverflowMenu`. The controller's posture behavior is covered by simulator unit tests; a physical hinge was not exercised. Layout is standard `NavigationStack` + toolbars, so bars go vertical on the outer display. Only `Platform/HingePosture.swift` touches the native hinge API.
+### Duo APIs and availability gating
 
-**Deployment target decision.** Packages stay at iOS 17 per the contract. The app target is **iOS 27.1** because the product is a Duo launch app and the hinge, vertical-bar, and overflow APIs are 27.1-only; this removes every availability gate from app code. Lowering it later means gating `HingePosture.swift` and the toolbar modifiers with `#available(iOS 27.1, *)`; nothing else depends on 27.1.
+The iOS 27.1 SDK declares every Duo API the app uses as `@available(anyAppleOS 27.1)`:
 
-## Build and run
+- `onHingeChange` and `DeviceHinge`
+- `ArrangementView` with `.split`
+- `GeometryProxy.reservedRegions`
+- `ToolbarItem.axisBehavior` and `visibilityPriority`
+- `ToolbarOverflowMenu`
+
+Each use is inside `if #available(iOS 27.1, *)` or an `@available(iOS 27.1, *)` declaration. Only `Platform/HingePosture.swift` touches the hinge API.
+
+- **iOS 27.1 on a Duo:** unfolding the device opens the card and folding it seals the card. On the inner display, the composer sits in a split `ArrangementView` beside `DuoComposeStage`, and toolbars use vertical bars.
+- **Earlier iOS versions and ordinary iPhones:** the same controller is driven only by the **Open** and **Seal** buttons, with a standard navigation toolbar.
+- **Every device:** folding never sends.
+
+## Build and test
 
 ```sh
 cd ios
-xcodegen generate                                   # writes Postcard.xcodeproj + App/Info.plist (both gitignored)
-export DEVELOPER_DIR=$HOME/Downloads/Xcode.app/Contents/Developer   # only if 27.1 isn't xcode-select'ed
+xcodegen generate
+export DEVELOPER_DIR=$HOME/Downloads/Xcode.app/Contents/Developer   # only if Xcode 27.1 is not xcode-select'ed
+
+# Build
 xcodebuild -project Postcard.xcodeproj -scheme Postcard -sdk iphonesimulator \
   -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+
+# All tests (unit + UI) on the Duo simulator
 xcodebuild -project Postcard.xcodeproj -scheme Postcard \
-  -destination 'platform=iOS Simulator,name=iPhone Duo' CODE_SIGNING_ALLOWED=NO test
+  -destination 'platform=iOS Simulator,name=iPhone Duo' \
+  -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test
+
+# One target only
+xcodebuild ... test -only-testing:PostcardAppTests
+xcodebuild ... test -only-testing:PostcardUITests
 ```
 
-Bitrig: **File → Open** the `ios/` folder. Pick **iPhone Duo** in the device list, Run, then use the Fold controls (Closed / Partially Open / Fully Open) beside the simulator.
+To check the button fallback, swap the destination for an ordinary iPhone, for example `'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'`.
 
-The app needs the four packages at `../packages/PostcardCore|PostcardServices|PostcardMotion|PostcardUI`. Barrat's `PostcardUI` is included on this branch. The other three still come from local, excluded contract stubs while Pranav's branch is pending; see `handoffs/zubair.md`. The current build does not verify live Supabase behavior.
+| Target | Sources | Covers |
+|---|---|---|
+| `PostcardAppTests` | `Tests/App` | The presentation controller: baseline posture, open/seal-once, jitter, debounce and deferred close, suppression, and manual fallback. Compose semantics: folding never sends, one send per submission, failed send keeps the draft id, and validation guards. Draft persistence, photo import limits, configuration, posture mapping, and photo loading with retry. |
+| `PostcardUITests` | `Tests/UI` | The fixture flow through the real app: compose, open, seal, explicit send, then the recipient reads the note and photo. A failed send followed by Retry stores exactly one postcard. The offline inbox shows Retry and recovers. It launches with `-resetDemo -forceDemo` and attaches screenshots to the result bundle. |
+
+Bitrig: **File → Open** the `ios/` folder, choose **iPhone Duo**, Run, then use the Fold controls beside the simulator.
 
 ## Demo mode (no credentials)
 
-Leave `Config/Local.xcconfig` absent. The app boots `FixturePostcardService`, and each screen labels the demo and simulated send. Sign in as `alice@demo`, `bob@demo`, or `eve@demo` with any password. Flow: Write → look up `bob` → select → Photo → open the device (or tap Open) → write → close (or tap Seal) → **Send**. Sends are simulated in memory; ~4 s later the recipient "replies", which exercises the realtime refetch path in the inbox. Nothing leaves the device.
+The app starts in fixture mode when `Config/Local.xcconfig` is absent or the `-forceDemo` launch argument is passed. It uses the in-memory `FixturePostcardService`, and every screen shows the demo label. Nothing leaves the device.
 
-## Real mode
+- The app starts signed in as **Alex Rivera** (`@alex`). New drafts come with a bundled sample photo (`DemoPhoto` asset).
+- Flow: **Write** → type `sam` → find → select **Sam Lee** → **Open** (or unfold the Duo) → write a note → **Seal** (or fold) → **Send**. Go back; the inbox lists Sam Lee.
+- The **Demo** menu, in the inbox toolbar, appears only in fixture mode:
+  - **View as Sam Lee / View as Alex Rivera** switches accounts, so one device shows both sides. Open Alex's conversation as Sam, then **Read their note**.
+  - **Fail the next send** makes the next send fail. The draft and its id are kept; **Retry** stores the postcard once.
+  - **Simulate offline / Go back online** makes the inbox fail with a retryable offline error, then recover.
+- After you sign out, fixture sign-in uses the part of the email before `@`. `sam@…` signs in as Sam Lee; any other valid email signs in as Alex. The password must have at least 8 characters.
+
+### Launch arguments
+
+| Argument | Effect |
+|---|---|
+| `-forceDemo` | Fixture mode even when `Local.xcconfig` configures Supabase. UI tests always pass it, so they never reach a backend. |
+| `-resetDemo` | Clears the stored draft at launch |
+
+## Live mode (local Supabase)
 
 ```sh
-cp Config/Local.xcconfig.example Config/Local.xcconfig   # gitignored
-# SUPABASE_URL = http:/$()/127.0.0.1:54321   ("//" is a comment in xcconfig, hence $())
-# SUPABASE_PUBLISHABLE_KEY = <from `supabase status`>
-xcodegen generate
-xcodebuild -project Postcard.xcodeproj -scheme Postcard -sdk iphonesimulator \
-  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+# From the repo root, with a local stack running (see backend/README.md):
+supabase status                                          # API URL and publishable key
+cp ios/Config/Local.xcconfig.example ios/Config/Local.xcconfig   # gitignored
+# Edit Local.xcconfig:
+#   SUPABASE_URL = http:/$()/127.0.0.1:54321     ("//" starts a comment in xcconfig, hence $())
+#   SUPABASE_PUBLISHABLE_KEY = <publishable key>
+cd ios && xcodegen generate
 ```
 
-Values flow xcconfig → Info.plist → `AppConfiguration`. Publishable key only; never a service-role key. When configured, `AppEnvironment.bootstrap()` constructs `SupabasePostcardService(url:publishableKey:)` from PostcardServices.
+Values flow from `Config/Postcard.xcconfig`, which includes `Local.xcconfig`, to Info.plist and then `AppConfiguration`. When both values are present, `AppEnvironment.bootstrap()` constructs `SupabasePostcardService(url:publishableKey:)`. Without a saved session, the app shows `PostcardAuthView`. Use the **publishable key only**, never a service-role or secret key. The example file already points at the local stack, so replace its placeholder key before building. The seeded local users are `alice@postcard.test`, `bob@postcard.test`, and `eve@postcard.test`, all with password `postcard-local-1`. If launch cannot reach the backend, the app shows a retryable "can't connect" screen and keeps the saved session and draft.
 
 ## Architecture
 
 ```
-App/            PostcardApp → AppEnvironment (composition root) → RootView → Auth | Main(NavigationStack: Inbox → Compose | Conversation)
-Platform/       DevicePosture, HingePosture (onHingeChange bridge), Haptics, AppConfiguration, DraftStore, PhotoImporter
-Features/       PostcardPresentationController (Duo controller), SessionCoordinator, ComposeViewModel, InboxViewModel, ConversationViewModel
-Tests/App/      XCTest: controller, compose/send semantics, persistence, photo import, photo loading, configuration
+App/            PostcardApp → AppEnvironment (composition root: fixture vs Supabase, demo controls)
+                → RootView (loading | Auth | Main | can't-connect) → NavigationStack: Inbox → Compose | Conversation
+                Screens/ wire PostcardUI views to view models; DuoComposeStage (27.1 inner-display pane)
+Platform/       DevicePosture, HingePosture (the only hinge API use), Haptics, AppConfiguration, DraftStore, PhotoImporter
+Features/       PostcardPresentationController (Duo controller), SessionCoordinator, ComposeViewModel,
+                InboxViewModel (realtime refetch + reconnect), ConversationViewModel (merge by UUID, signed URLs, photo bytes)
+Tests/App/      PostcardAppTests
+Tests/UI/       PostcardUITests
 ```
 
 ### Presentation controller rules (`Features/Presentation`)
 
-- Input: `DevicePosture` (from hinge or simulated) plus manual `open()` / `seal()`.
-- First posture event only sets the baseline (initial posture never flips a card). Angle jitter with unchanged open/closed meaning is ignored.
-- `front → writing` on open; `writing → sealed` on close; `sealed` stays sealed on repeated closes (seal once); `sealed → writing` on reopen.
-- Debounce 250 ms between hinge transitions; a deferred event re-syncs to the physical posture when the window or suppression ends (quick reopen is not lost).
-- Suppressed while: `.sending`, `.authenticating`, `.modal` (PhotosPicker), `.composerHidden` (not on the compose screen).
+- Inputs: `DevicePosture` from the hinge bridge, plus manual `open()` and `seal()`.
+- The first posture event only sets the baseline. Angle jitter that does not change the open/closed meaning is ignored.
+- Transitions:
+  - `front → writing` on open.
+  - `writing → sealed` on close. Repeated closes keep it sealed, so the card seals once.
+  - `sealed → writing` on reopen.
+  - `sending` and `sent` ignore posture.
+- Hinge transitions are debounced by 250 ms. A deferred event re-syncs to the physical posture when the window or a suppression ends.
+- Suppression reasons: `.sending`, `.authenticating`, `.modal` (PhotosPicker), and `.composerHidden`.
 - Haptics: light on open, medium on seal, success on sent.
-- The controller has no reference to `PostcardService`. `ComposeViewModel.send()` is the only caller of `send(draft:)`, guarded by `beginSending()` plus a per-draft sent set, so one submission = one send. Failure returns to `.sealed` with the draft intact and the same `draft.id` for the retry.
+- The controller holds no `PostcardService`. `ComposeViewModel.send()` is the only caller of `send(draft:)`. It is guarded by `beginSending()` and a per-draft sent set. On failure the state returns to `.sealed` and the draft keeps its id. Recipient lookup errors go to `recipientLookupMessage`, never to the send error.
 
-### Persistence
+### Drafts and photos
 
-`FileDraftStore` writes `draft.json` (Application Support, complete file protection) 300 ms after each edit and immediately when the scene leaves the foreground. It is cleared only after a confirmed send. `startNewDraft()` rotates the id.
-
-### Photos
-
-`PhotosPicker` → `Data` → `PhotoImporter.makeJPEG`: downscales to ≤ 20 MP and recompresses to ≤ 10 MB (rejects if impossible). The fixture service and Zafar's backend both require a photo; Send is disabled without one.
+- `FileDraftStore` writes `draft.json` to Application Support with complete file protection, 300 ms after each edit and immediately when the scene leaves the foreground. The file is cleared only after a confirmed send.
+- Write and Reply resume an unsent draft that has content. Reply readdresses it to the peer unless it is sealed.
+- `PhotosPicker` data goes through `PhotoImporter.makeJPEG`, which downscales to at most 20 MP and recompresses to at most 10 MB, or rejects the image.
+- A photo is required: Send stays disabled without one, and the backend rejects a send with no photo.
