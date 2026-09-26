@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 import PostcardCore
 import PostcardServices
 
@@ -36,6 +37,12 @@ final class AppEnvironment {
     // Demo mode skips the sign-in screen: the fixture session starts as Alice so the Duo flow is one tap away.
     // Live mode (Local.xcconfig present) still goes through PostcardAuthView.
     let fixture = FixturePostcardService(scenario: .standard, signedInAs: FixturePostcardService.alice)
-    return AppEnvironment(mode: .fixture, service: fixture, draftStore: draftStore, haptics: SystemHaptics())
+    let environment = AppEnvironment(mode: .fixture, service: fixture, draftStore: draftStore, haptics: SystemHaptics())
+    environment.compose.seedDemoDraftIfEmpty(
+      recipient: FixturePostcardService.bob,
+      destination: "Cinque Terre",
+      photoData: UIImage(named: "SamplePhoto")?.jpegData(compressionQuality: 0.85)
+    )
+    return environment
   }
 }

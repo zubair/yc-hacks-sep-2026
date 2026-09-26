@@ -5,79 +5,57 @@ import PostcardUI
 
 struct ComposeScreen: View {
   @Environment(AppEnvironment.self) private var env
-  @Environment(\.horizontalSizeClass) private var widthClass
   @State private var pickerItem: PhotosPickerItem?
   @State private var showingPicker = false
+  @State private var showingRecipient = false
 
   var body: some View {
-    Group {
-      if widthClass == .regular {
-        // Inner display: composer and the standing postcard share one arrangement. Split adapts around an
-        // active fold: book pose puts them side by side, table pose puts the card above and controls below.
-        ArrangementView {
-          composer
-        } secondary: {
-          DuoComposeStage()
-        }
-        .arrangementViewStyle(.split)
-      } else {
-        composer
-      }
-    }
-    .background(PostcardStyle.paper)
-    .photosPicker(isPresented: $showingPicker, selection: $pickerItem, matching: .images)
-    .onChange(of: showingPicker) { _, showing in env.presentation.setSuppressed(showing, reason: .modal) }
-    .onChange(of: pickerItem) { _, item in
-      guard let item else { return }
-      Task {
-        await env.compose.importPhoto(from: item)
-        pickerItem = nil
-      }
-    }
-    .navigationTitle(env.presentation.state == .sent ? "Sent" : "New postcard")
-    .navigationBarTitleDisplayMode(.inline)
-    .toolbar {
-      ToolbarItem(placement: .primaryAction) {
-        Button("Send", systemImage: "paperplane") { Task { await env.compose.send() } }
-          .disabled(!env.compose.canSend)
-      }
-      .axisBehavior(.automatic)
-      .visibilityPriority(.high)
-      ToolbarItem(placement: .secondaryAction) {
-        if env.presentation.state == .writing {
-          Button("Seal", systemImage: "seal") { env.presentation.seal(source: .manual) }
-        } else {
-          Button("Open", systemImage: "rectangle.portrait.and.arrow.right") { env.presentation.open(source: .manual) }
-            .disabled(env.presentation.state == .sent || env.presentation.state == .sending)
+    PostcardExperienceView(onChooseRecipient: { showingRecipient = true }, onChoosePhoto: { showingPicker = true })
+      .photosPicker(isPresented: $showingPicker, selection: $pickerItem, matching: .images)
+      .sheet(isPresented: $showingRecipient) { RecipientSheet() }
+      .onChange(of: showingPicker) { _, showing in env.presentation.setSuppressed(showing, reason: .modal) }
+      .onChange(of: showingRecipient) { _, showing in env.presentation.setSuppressed(showing, reason: .modal) }
+      .onChange(of: pickerItem) { _, item in
+        guard let item else { return }
+        Task {
+          await env.compose.importPhoto(from: item)
+          pickerItem = nil
         }
       }
-      ToolbarOverflowMenu {
-        Button("Start another postcard", systemImage: "plus.rectangle.portrait") { env.compose.startNewDraft() }
-          .disabled(env.compose.isSending)
-        Button("Discard draft", systemImage: "trash", role: .destructive) { env.compose.discardDraft() }
-          .disabled(env.compose.isSending)
+      .navigationTitle("")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbarBackground(.hidden, for: .navigationBar)
+      .toolbar {
+        ToolbarItem(placement: .primaryAction) {
+          Button("Send", systemImage: "paperplane") { Task { await env.compose.send() } }
+            .disabled(!env.compose.canSend)
+        }
+        .axisBehavior(.automatic)
+        .visibilityPriority(.high)
+        ToolbarItem(placement: .secondaryAction) {
+          Button("Photo", systemImage: "photo") { showingPicker = true }
+            .disabled(env.compose.isSending)
+        }
+        ToolbarItem(placement: .secondaryAction) {
+          Button("Address", systemImage: "person.crop.rectangle") { showingRecipient = true }
+            .disabled(env.compose.isSending)
+        }
+        ToolbarOverflowMenu {
+          if env.presentation.state == .writing {
+            Button("Seal", systemImage: "seal") { env.presentation.seal(source: .manual) }
+          } else if env.presentation.state == .front || env.presentation.state == .sealed {
+            Button("Open", systemImage: "rectangle.portrait.and.arrow.right") { env.presentation.open(source: .manual) }
+          }
+          Button("Start another postcard", systemImage: "plus.rectangle.portrait") { env.compose.startNewDraft() }
+            .disabled(env.compose.isSending)
+          Button("Discard draft", systemImage: "trash", role: .destructive) { env.compose.discardDraft() }
+            .disabled(env.compose.isSending)
+        }
       }
-    }
-    .sensoryFeedback(.success, trigger: env.presentation.state == .sent)
-  }
-
-  private var composer: some View {
-    @Bindable var compose = env.compose
-    return PostcardComposerView(
-      draft: $compose.draft,
-      state: env.presentation.state,
-      error: compose.errorMessage,
-      recipientLookupResult: compose.lookupResult,
-      isLookingUpRecipient: compose.isLookingUp,
-      isDemo: env.mode == .fixture,
-      onLookupRecipient: { username in Task { await compose.lookup(username: username) } },
-      onSelectRecipient: { compose.select(recipient: $0) },
-      onChoosePhoto: { showingPicker = true },
-      onOpen: { env.presentation.open(source: .manual) },
-      onSeal: { env.presentation.seal(source: .manual) },
-      onSend: { Task { await compose.send() } },
-      onRetry: { Task { await compose.send() } }
-    )
-    .disabled(compose.isSending)
+      .sensoryFeedback(.success, trigger: env.presentation.state == .sent)
+      .onAppear {
+        // `--open` launch argument starts on the back spread (screenshot automation on simulators without a hinge).
+        if ProcessInfo.processInfo.arguments.contains("--open") { env.presentation.open(source: .system) }
+      }
   }
 }

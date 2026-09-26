@@ -53,6 +53,12 @@ final class ComposeViewModel {
     presentation.resetForNewDraft()
   }
 
+  /// Demo only: give the first launch a finished front (photo, place, recipient) so the fold story starts immediately.
+  func seedDemoDraftIfEmpty(recipient: PostcardProfile, destination: String, photoData: Data?) {
+    guard draft.message.isEmpty, draft.photoData == nil, draft.recipientId == nil else { return }
+    draft = PostcardDraft(recipientId: recipient.id, recipientName: recipient.displayName, senderName: session.profile?.displayName ?? "", destination: destination, photoData: photoData)
+  }
+
   func discardDraft() {
     guard !isSending else { return }
     draftStore.clear()

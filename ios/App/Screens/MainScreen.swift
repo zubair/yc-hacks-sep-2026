@@ -28,6 +28,10 @@ struct MainScreen: View {
       // but a card is only foldable while the composer is on screen.
       env.presentation.setSuppressed(!routes.contains(.compose), reason: .composerHidden)
     }
-    .onAppear { env.presentation.setSuppressed(!path.contains(.compose), reason: .composerHidden) }
+    .onAppear {
+      // `--compose` launch argument opens the postcard directly (demo shortcut and screenshot automation).
+      if path.isEmpty, ProcessInfo.processInfo.arguments.contains("--compose") { path = [.compose] }
+      env.presentation.setSuppressed(!path.contains(.compose), reason: .composerHidden)
+    }
   }
 }
