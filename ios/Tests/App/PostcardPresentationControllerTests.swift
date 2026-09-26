@@ -8,7 +8,7 @@ final class PostcardPresentationControllerTests: XCTestCase {
   private var controller: PostcardPresentationController!
   private let t0 = Date(timeIntervalSince1970: 1_000)
 
-  override func setUp() {
+  override func setUp() async throws {
     haptics = SpyHaptics()
     controller = PostcardPresentationController(haptics: haptics, debounce: 0.25)
   }
@@ -50,6 +50,16 @@ final class PostcardPresentationControllerTests: XCTestCase {
     XCTAssertEqual(controller.state, .writing)
     controller.receive(posture: .closed, at: t0.addingTimeInterval(2.0))
     XCTAssertEqual(controller.state, .sealed)
+  }
+
+  func testDeferredCloseSealsWithoutAnotherHingeEvent() async throws {
+    controller.receive(posture: .closed, at: t0)
+    controller.receive(posture: .fullyOpen, at: t0.addingTimeInterval(1))
+    controller.receive(posture: .closed, at: t0.addingTimeInterval(1.05))
+    XCTAssertEqual(controller.state, .writing)
+    try await Task.sleep(for: .milliseconds(350))
+    XCTAssertEqual(controller.state, .sealed)
+    XCTAssertEqual(haptics.events, [.opened, .sealed])
   }
 
   func testSuppressionWhileSendingAndModal() {

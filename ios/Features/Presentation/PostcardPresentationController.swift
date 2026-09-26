@@ -25,11 +25,13 @@ final class PostcardPresentationController {
   private(set) var suppressionReasons: Set<SuppressionReason> = []
   /// Set when a hinge event arrived while suppressed; applied when suppression lifts so a quick reopen isn't lost.
   private var pendingHingeOpen: Bool?
+  private var resyncTask: Task<Void, Never>?
 
   private let haptics: any HapticsPlaying
   private let debounce: TimeInterval
   private var hasInitialPosture = false
   private var lastHingeTransition: Date?
+  private var latestHingeEventTime: Date?
 
   var isSuppressed: Bool { !suppressionReasons.isEmpty }
 
@@ -44,21 +46,32 @@ final class PostcardPresentationController {
   func receive(posture newPosture: DevicePosture, at now: Date = Date()) {
     let previous = posture
     posture = newPosture
+    latestHingeEventTime = now
     guard let isOpen = newPosture.isOpen else { return }
     guard hasInitialPosture else {
       hasInitialPosture = true
       return
     }
     // Ignore angle-only jitter while the open/closed meaning is unchanged.
-    if previous.isOpen == isOpen { return }
+    if previous.isOpen == isOpen {
+      if pendingHingeOpen != nil, !isSuppressed {
+        pendingHingeOpen = isOpen
+        scheduleResync()
+      }
+      return
+    }
     if isSuppressed {
       pendingHingeOpen = isOpen
+      resyncTask?.cancel()
       return
     }
     if let last = lastHingeTransition, now.timeIntervalSince(last) < debounce {
       pendingHingeOpen = isOpen
+      scheduleResync()
       return
     }
+    pendingHingeOpen = nil
+    resyncTask?.cancel()
     if apply(open: isOpen, source: .hinge) {
       lastHingeTransition = now
     }
@@ -68,11 +81,13 @@ final class PostcardPresentationController {
 
   func open(source: Source = .manual) {
     guard !isSuppressed || source == .system else { return }
+    cancelPendingResync()
     _ = apply(open: true, source: source)
   }
 
   func seal(source: Source = .manual) {
     guard !isSuppressed || source == .system else { return }
+    cancelPendingResync()
     _ = apply(open: false, source: source)
   }
 
@@ -87,6 +102,7 @@ final class PostcardPresentationController {
 
   func sendSucceeded() {
     suppressionReasons.remove(.sending)
+    cancelPendingResync()
     move(to: .sent, source: .system)
     haptics.play(.sent)
   }
@@ -94,10 +110,11 @@ final class PostcardPresentationController {
   func sendFailed() {
     suppressionReasons.remove(.sending)
     move(to: .sealed, source: .system)
+    if !isSuppressed { applyPendingResync() }
   }
 
   func resetForNewDraft() {
-    pendingHingeOpen = nil
+    cancelPendingResync()
     move(to: .front, source: .system)
   }
 
@@ -108,15 +125,37 @@ final class PostcardPresentationController {
       suppressionReasons.insert(reason)
     } else {
       suppressionReasons.remove(reason)
-      if !isSuppressed, let pending = pendingHingeOpen {
-        pendingHingeOpen = nil
-        // Re-sync with the physical posture instead of replaying a stale event.
-        if posture.isOpen == pending { _ = apply(open: pending, source: .hinge) }
-      }
+      if !isSuppressed { applyPendingResync() }
     }
   }
 
   // MARK: Internals
+
+  private func scheduleResync() {
+    resyncTask?.cancel()
+    resyncTask = Task { [weak self, debounce] in
+      try? await Task.sleep(for: .seconds(debounce))
+      guard !Task.isCancelled else { return }
+      self?.applyPendingResync()
+    }
+  }
+
+  private func applyPendingResync() {
+    guard !isSuppressed, let pending = pendingHingeOpen else { return }
+    pendingHingeOpen = nil
+    resyncTask?.cancel()
+    resyncTask = nil
+    // Re-sync to the latest physical posture rather than replaying a stale event.
+    if posture.isOpen == pending, apply(open: pending, source: .hinge) {
+      lastHingeTransition = latestHingeEventTime
+    }
+  }
+
+  private func cancelPendingResync() {
+    pendingHingeOpen = nil
+    resyncTask?.cancel()
+    resyncTask = nil
+  }
 
   /// Returns true when the state changed.
   @discardableResult

@@ -36,8 +36,7 @@ final class ComposeViewModel {
 
   var canSend: Bool {
     !isSending
-      && presentation.state != .sent
-      && presentation.state != .sending
+      && (presentation.state == .writing || presentation.state == .sealed)
       && draft.recipientId != nil
       && draft.photoData != nil
       && !draft.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -46,6 +45,7 @@ final class ComposeViewModel {
   // MARK: Draft lifecycle
 
   func startNewDraft(recipient: PostcardProfile? = nil) {
+    guard !isSending else { return }
     draft = PostcardDraft(recipientId: recipient?.id, recipientName: recipient?.displayName ?? "", senderName: session.profile?.displayName ?? "")
     lookupResult = recipient
     errorMessage = nil
@@ -54,6 +54,7 @@ final class ComposeViewModel {
   }
 
   func discardDraft() {
+    guard !isSending else { return }
     draftStore.clear()
     startNewDraft()
   }
@@ -117,14 +118,15 @@ final class ComposeViewModel {
     guard draft.photoData != nil else { return fail("Add a photo to the front of your postcard.") }
     guard !draft.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return fail("Write something on the back first.") }
     if draft.senderName.isEmpty { draft.senderName = session.profile?.displayName ?? "" }
-    guard presentation.beginSending() else { return }
+    guard presentation.beginSending() else { return fail("Open your postcard before sending.") }
+    let submission = draft
     isSending = true
     errorMessage = nil
     persistNow()
     defer { isSending = false }
     do {
-      let message = try await service.send(draft: draft)
-      sentDraftIds.insert(draft.id)
+      let message = try await service.send(draft: submission)
+      sentDraftIds.insert(submission.id)
       lastSent = message
       presentation.sendSucceeded()
       draftStore.clear()

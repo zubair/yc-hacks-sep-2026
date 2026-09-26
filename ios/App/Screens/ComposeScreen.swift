@@ -24,6 +24,7 @@ struct ComposeScreen: View {
       onSend: { Task { await compose.send() } },
       onRetry: { Task { await compose.send() } }
     )
+    .disabled(compose.isSending)
     .photosPicker(isPresented: $showingPicker, selection: $pickerItem, matching: .images)
     .onChange(of: showingPicker) { _, showing in env.presentation.setSuppressed(showing, reason: .modal) }
     .onChange(of: pickerItem) { _, item in
@@ -44,7 +45,9 @@ struct ComposeScreen: View {
       .visibilityPriority(.high)
       ToolbarOverflowMenu {
         Button("Start another postcard", systemImage: "plus.rectangle.portrait") { compose.startNewDraft() }
+          .disabled(compose.isSending)
         Button("Discard draft", systemImage: "trash", role: .destructive) { compose.discardDraft() }
+          .disabled(compose.isSending)
       }
     }
     .sensoryFeedback(.success, trigger: env.presentation.state == .sent)

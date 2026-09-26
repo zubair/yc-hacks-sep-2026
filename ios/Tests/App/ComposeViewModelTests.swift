@@ -69,6 +69,17 @@ final class ComposeViewModelTests: XCTestCase {
     XCTAssertEqual(presentation.state, .front)
   }
 
+  func testSendRequiresOpeningThePostcard() async {
+    model.draft = .ready(recipient: await service.recipient)
+    XCTAssertFalse(model.canSend)
+    await model.send()
+    let calls = await service.sendCalls
+    XCTAssertTrue(calls.isEmpty)
+    XCTAssertNotNil(model.errorMessage)
+    presentation.open()
+    XCTAssertTrue(model.canSend)
+  }
+
   func testRecipientLookupBindsIntoDraft() async {
     await model.lookup(username: "friend")
     XCTAssertNotNil(model.lookupResult)
