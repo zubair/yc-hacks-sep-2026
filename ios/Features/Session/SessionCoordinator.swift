@@ -5,7 +5,9 @@ import PostcardCore
 @MainActor
 @Observable
 final class SessionCoordinator {
-  enum State: Equatable { case loading, signedOut, signedIn(PostcardProfile) }
+  /// `unavailable` means the session could not be checked (offline or server error). It is not a sign-out:
+  /// the stored session is kept and the person can retry.
+  enum State: Equatable { case loading, signedOut, signedIn(PostcardProfile), unavailable(String) }
 
   private(set) var state: State = .loading
   private(set) var isBusy = false
@@ -28,9 +30,19 @@ final class SessionCoordinator {
       } else {
         state = .signedOut
       }
-    } catch {
+    } catch PostcardServiceError.unauthenticated {
       state = .signedOut
+    } catch {
+      state = .unavailable(UserFacingError.describe(error))
     }
+  }
+
+  func retryRestore() async {
+    guard !isBusy else { return }
+    isBusy = true
+    defer { isBusy = false }
+    state = .loading
+    await restore()
   }
 
   func signIn(email: String, password: String) async {

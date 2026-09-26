@@ -21,7 +21,7 @@ struct ConversationScreen: View {
           isDemo: env.mode == .fixture,
           title: conversation.peer.displayName,
           onReply: {
-            env.compose.startNewDraft(recipient: conversation.peer)
+            env.compose.prepareDraft(recipient: conversation.peer)
             path.append(.compose)
           },
           onRefresh: { Task { await model.load() } },

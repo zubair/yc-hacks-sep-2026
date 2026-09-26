@@ -4,10 +4,11 @@ options:
   bundleIdPrefix: com.bairisland
   createIntermediateGroups: true
   groupSortPosition: bottom
-  # Duo APIs (hinge, arrangement, vertical bars) ship in the iOS 27.1 SDK. Packages stay at iOS 17;
-  # the app target is 27.1 so Duo code needs no availability gates. Documented in ios/README.md.
+  # Duo APIs (hinge, arrangement, vertical bars) ship in the iOS 27.1 SDK and are availability-gated
+  # (`if #available(iOS 27.1, *)`), so the app runs on any iOS 17+ iPhone with Open/Seal buttons.
+  # Build with Xcode 27.1. Documented in ios/README.md.
   deploymentTarget:
-    iOS: "27.1"
+    iOS: "17.0"
 configs:
   Debug: debug
   Release: release
@@ -67,6 +68,17 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         MARKETING_VERSION: "1.0"
         SWIFT_STRICT_CONCURRENCY: complete
+  PostcardUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - Tests/UI
+    dependencies:
+      - target: Postcard
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bairisland.postcard.uitests
+        GENERATE_INFOPLIST_FILE: YES
   PostcardAppTests:
     type: bundle.unit-test
     platform: iOS
@@ -83,9 +95,11 @@ schemes:
       targets:
         Postcard: all
         PostcardAppTests: [test]
+        PostcardUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
         - PostcardAppTests
+        - PostcardUITests

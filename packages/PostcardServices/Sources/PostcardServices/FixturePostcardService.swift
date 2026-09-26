@@ -43,10 +43,12 @@ public actor FixturePostcardService: PostcardService {
         signedInProfile = PostcardProfile(id: Self.sender.id, username: username, displayName: displayName)
     }
 
+    /// Demo sign-in: `sam@…` signs in as the recipient; any other valid email signs in as the sender.
     public func signIn(email: String, password: String) throws {
         try requireOnline()
         try validateAuth(email: email, password: password)
-        signedInProfile = Self.sender
+        let account = email.split(separator: "@").first.map { $0.lowercased() }
+        signedInProfile = account == Self.recipient.username ? Self.recipient : Self.sender
     }
 
     public func signOut() {

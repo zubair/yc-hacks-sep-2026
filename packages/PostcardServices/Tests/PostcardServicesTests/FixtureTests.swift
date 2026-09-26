@@ -26,6 +26,10 @@ final class FixtureTests: XCTestCase {
             _ = try await service.conversations()
             XCTFail("Expected auth error")
         } catch PostcardServiceError.unauthenticated { }
+        try await service.signIn(email: "sam@demo.com", password: "any-demo-password")
+        let sam = try await service.currentProfile()
+        XCTAssertEqual(sam, FixturePostcardService.recipient)
+        await service.signOut()
         await service.setOffline(true)
         do {
             _ = try await service.currentProfile()

@@ -9,7 +9,7 @@ struct AuthScreen: View {
       PostcardAuthView(
         isLoading: env.session.isBusy,
         error: env.session.errorMessage,
-        notice: env.session.infoMessage ?? (env.mode == .fixture ? "Demo accounts: alice@demo.com, bob@demo.com, eve@demo.com · any password" : nil),
+        notice: env.session.infoMessage ?? (env.mode == .fixture ? "Demo accounts: alex@demo.com or sam@demo.com, any password of 8+ characters. Nothing is sent." : nil),
         isDemo: env.mode == .fixture,
         onSignIn: { email, password in Task { await env.session.signIn(email: email, password: password) } },
         onSignUp: { email, password, username, displayName in

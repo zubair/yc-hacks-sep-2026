@@ -88,7 +88,8 @@ final class ComposeViewModelTests: XCTestCase {
     XCTAssertEqual(model.draft.senderName, "Tester")
     await model.lookup(username: "nobody")
     XCTAssertNil(model.lookupResult)
-    XCTAssertNotNil(model.errorMessage)
+    XCTAssertNotNil(model.lookupMessage)
+    XCTAssertNil(model.errorMessage, "lookup feedback must not surface as a send error with a re-send retry")
   }
 
   func testDraftRestoresFromStore() {

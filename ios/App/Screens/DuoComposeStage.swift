@@ -7,6 +7,7 @@ import PostcardUI
 /// The postcard stands on its own half of the fold and reacts to the hinge:
 /// state drives the flip, hinge angle drives a gentle tilt, reserved regions are read for the readout.
 /// Purely presentational: nothing here mutates state or sends.
+@available(iOS 27.1, *)
 struct DuoComposeStage: View {
   @Environment(AppEnvironment.self) private var env
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -41,7 +42,7 @@ struct DuoComposeStage: View {
       }
       .aspectRatio(1.45, contentMode: .fit)
       .frame(maxWidth: 520)
-      .postcardSeal(isSealed: isSealed)
+      .modifier(PostcardSealEffect(isSealed: isSealed))
       .rotation3DEffect(.degrees(-tilt), axis: (x: 1, y: 0, z: 0), anchor: .bottom, perspective: 0.6)
       .animation(.spring(response: 0.5, dampingFraction: 0.8), value: tilt)
       .accessibilityElement(children: .contain)

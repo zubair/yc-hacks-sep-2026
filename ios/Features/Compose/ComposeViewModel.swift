@@ -13,6 +13,8 @@ final class ComposeViewModel {
   }
   private(set) var lookupResult: PostcardProfile?
   private(set) var isLookingUp = false
+  /// Lookup feedback (no match, lookup failure). Kept apart from `errorMessage`, whose retry action re-sends.
+  private(set) var lookupMessage: String?
   private(set) var isSending = false
   private(set) var lastSent: PostcardMessage?
   var errorMessage: String?
@@ -22,16 +24,19 @@ final class ComposeViewModel {
   private let draftStore: any DraftStoring
   private let session: SessionCoordinator
   private let photoImporter = PhotoImporter()
+  /// Demo mode only: a bundled sample photo so the fixture flow needs no photo library.
+  private let defaultPhoto: Data?
   private var saveTask: Task<Void, Never>?
   /// Draft ids that have already been confirmed sent, to guarantee one send per submission even across quick taps.
   private var sentDraftIds: Set<UUID> = []
 
-  init(service: any PostcardService, presentation: PostcardPresentationController, draftStore: any DraftStoring, session: SessionCoordinator) {
+  init(service: any PostcardService, presentation: PostcardPresentationController, draftStore: any DraftStoring, session: SessionCoordinator, defaultPhoto: Data? = nil) {
     self.service = service
     self.presentation = presentation
     self.draftStore = draftStore
     self.session = session
-    draft = draftStore.load() ?? PostcardDraft()
+    self.defaultPhoto = defaultPhoto
+    draft = draftStore.load() ?? PostcardDraft(photoData: defaultPhoto)
   }
 
   var canSend: Bool {
@@ -46,11 +51,31 @@ final class ComposeViewModel {
 
   func startNewDraft(recipient: PostcardProfile? = nil) {
     guard !isSending else { return }
-    draft = PostcardDraft(recipientId: recipient?.id, recipientName: recipient?.displayName ?? "", senderName: session.profile?.displayName ?? "")
+    draft = PostcardDraft(recipientId: recipient?.id, recipientName: recipient?.displayName ?? "", senderName: session.profile?.displayName ?? "", photoData: defaultPhoto)
     lookupResult = recipient
+    lookupMessage = nil
     errorMessage = nil
     lastSent = nil
     presentation.resetForNewDraft()
+  }
+
+  /// Entry point for "Write" and "Reply". Keeps an unsent draft the person has started (it is persisted
+  /// work); starts fresh after a confirmed send or when the current draft is still blank.
+  func prepareDraft(recipient: PostcardProfile? = nil) {
+    guard !isSending else { return }
+    let justSent = presentation.state == .sent || sentDraftIds.contains(draft.id)
+    if justSent || !hasUserContent {
+      startNewDraft(recipient: recipient)
+    } else if let recipient, draft.recipientId != recipient.id, presentation.state != .sealed {
+      select(recipient: recipient)
+      lookupResult = recipient
+    }
+  }
+
+  private var hasUserContent: Bool {
+    !draft.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || !draft.destination.isEmpty
+      || (draft.photoData != nil && draft.photoData != defaultPhoto)
   }
 
   func discardDraft() {
@@ -80,13 +105,14 @@ final class ComposeViewModel {
     let trimmed = username.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty, !isLookingUp else { return }
     isLookingUp = true
-    errorMessage = nil
+    lookupMessage = nil
     defer { isLookingUp = false }
     do {
       lookupResult = try await service.lookupRecipient(username: trimmed)
-      if lookupResult == nil { errorMessage = "No one with the username “\(trimmed.lowercased())”." }
+      if lookupResult == nil { lookupMessage = "No one with the username “\(trimmed.lowercased())”." }
     } catch {
-      errorMessage = UserFacingError.describe(error)
+      lookupResult = nil
+      lookupMessage = UserFacingError.describe(error)
     }
   }
 
@@ -94,6 +120,7 @@ final class ComposeViewModel {
     draft.recipientId = recipient.id
     draft.recipientName = recipient.displayName
     if draft.senderName.isEmpty { draft.senderName = session.profile?.displayName ?? "" }
+    lookupMessage = nil
     errorMessage = nil
   }
 

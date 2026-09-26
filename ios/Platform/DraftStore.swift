@@ -24,13 +24,13 @@ final class FileDraftStore: DraftStoring, @unchecked Sendable {
   func load() -> PostcardDraft? {
     queue.sync {
       guard let data = try? Data(contentsOf: url) else { return nil }
-      return try? PostcardCoding.decoder.decode(PostcardDraft.self, from: data)
+      return try? JSONDecoder().decode(PostcardDraft.self, from: data)
     }
   }
 
   func save(_ draft: PostcardDraft) {
     queue.sync {
-      guard let data = try? PostcardCoding.encoder.encode(draft) else { return }
+      guard let data = try? JSONEncoder().encode(draft) else { return }
       try? data.write(to: url, options: [.atomic, .completeFileProtection])
     }
   }
