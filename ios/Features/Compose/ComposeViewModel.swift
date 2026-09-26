@@ -45,7 +45,8 @@ final class ComposeViewModel {
 
   var canSend: Bool {
     guard !isSending, presentation.state == .writing || presentation.state == .sealed else { return false }
-    // An empty signature is filled from the profile at send time, exactly as `send()` does.
+    // An empty signature is filled from the profile at send time, exactly as `send()` does. The demo seed runs
+    // before the session loads, so without this Continue would stay disabled on the seeded draft.
     var candidate = draft
     if candidate.senderName.isEmpty { candidate.senderName = session.profile?.displayName ?? "" }
     return !candidate.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -65,14 +66,6 @@ final class ComposeViewModel {
     presentation.resetForNewDraft()
   }
 
-  /// Demo only: give the first launch a finished front (photo, place, recipient) so the fold story starts immediately.
-  func seedDemoDraftIfEmpty(recipient: PostcardProfile, destination: String) {
-    guard draft.recipientId == nil, draft.message.isEmpty, draft.destination.isEmpty else { return }
-    draft = PostcardDraft(recipientId: recipient.id, recipientName: recipient.displayName,
-                          senderName: session.profile?.displayName ?? "", destination: destination, photoData: draft.photoData ?? defaultPhoto)
-    lookupResult = recipient
-  }
-
   /// Entry point for "Write" and "Reply". Keeps an unsent draft the person has started (it is persisted
   /// work); starts fresh after a confirmed send or when the current draft is still blank.
   func prepareDraft(recipient: PostcardProfile? = nil) {
@@ -90,6 +83,17 @@ final class ComposeViewModel {
     !draft.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       || !draft.destination.isEmpty
       || (draft.photoData != nil && draft.photoData != defaultPhoto)
+  }
+
+  /// Demo only: give a blank first draft a recipient and a place so the fold story starts immediately.
+  /// The demo photo is already the default; message stays empty so the person writes it.
+  func seedDemoDraftIfEmpty(recipient: PostcardProfile, destination: String) {
+    guard draft.message.isEmpty, draft.recipientId == nil, draft.destination.isEmpty else { return }
+    draft.recipientId = recipient.id
+    draft.recipientName = recipient.displayName
+    draft.destination = destination
+    if draft.senderName.isEmpty { draft.senderName = session.profile?.displayName ?? "" }
+    lookupResult = nil
   }
 
   func discardDraft() {
