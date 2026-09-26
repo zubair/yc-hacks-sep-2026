@@ -4,7 +4,7 @@
 
 All four workstreams are merged. The app builds with Xcode 27.1 against the real `PostcardCore`, `PostcardServices`, `PostcardMotion`, and `PostcardUI` packages; the app's local contract stubs are gone. Integration also gated the Duo APIs on iOS 27.1 (app target iOS 17.0), added fixture demo controls and a UI test target, fixed the defects found by two code reviews and a security review, and added an opt-in live contract test that runs the Swift Supabase adapter against a real local stack.
 
-Verified on the final tree: backend 27/27 from scratch; PostcardServices 11/11 including live tests against the hardened backend (Linux); PostcardCore 1/1; PostcardUI 6/6; the app builds with Xcode 27.1; iPhone Duo (iOS 27.1) and iPhone 16 Pro (iOS 18.5) each pass 25/25 unit and 3/3 UI tests. Not done: hosted deployment, app UI in live mode, a physical fold, real-user messaging.
+Verified on the final tree: backend 27/27 from scratch; PostcardServices 11/11 including live tests against the hardened backend (Linux); PostcardCore 1/1; PostcardUI 6/6; the app builds with Xcode 27.1; iPhone 16 Pro (iOS 18.5) passes 25/25 unit and 3/3 UI tests. The final tree's iPhone Duo run was interrupted (the build Mac went to sleep); an earlier port of the same redesign passed 25/25 and 3/3 on the Duo. Not done: hosted deployment, app UI in live mode, a physical fold, real-user messaging.
 
 Working branch: `claude/great-cray-2rrx7l`, based on `origin/integration/final` @ `8d7e9fc`, merged into `integration/final` through zubair/yc-hacks-sep-2026#3.
 
@@ -137,8 +137,9 @@ Final tree (after the second integration round):
 | `cd packages/PostcardCore && swift test` | Linux, Swift 6.4 | 1/1 pass |
 | `python3 packages/PostcardUI/Examples/test_rules.py`; `xcodebuild -scheme PostcardUI test` | Linux Swift 6.4; Xcode 27.1 simulator | 6/6 pass; 6/6 pass |
 | `cd ios && xcodegen generate && xcodebuild … -destination 'generic/platform=iOS Simulator' build` | Xcode 27.1 on macOS 27.0 | Build succeeded |
-| `xcodebuild … test` (PostcardAppTests + PostcardUITests) | iPhone Duo simulator, iOS 27.1 | 25/25 unit, 3/3 UI pass |
-| Same | iPhone 16 Pro simulator, iOS 18.5 | 25/25 unit, 3/3 UI pass |
+| `xcodebuild … test` (PostcardAppTests + PostcardUITests), final tree (`c7a1f28`'s app code) | iPhone 16 Pro simulator, iOS 18.5 | 25/25 unit, 3/3 UI pass |
+| Same, on the integration branch's own port of the redesign (`e1563fa`) | iPhone Duo simulator, iOS 27.1; iPhone 16 Pro, iOS 18.5 | 25/25 unit, 3/3 UI pass on both |
+| Same, final tree | iPhone Duo simulator, iOS 27.1 | Not completed: the build Mac went to sleep mid-run. PR #6's author reported the 25 unit tests passing on the Duo for its version. Rerun before a Duo demo. |
 | App in live mode, two accounts against local Supabase | — | Not run: the local stack ran in the Linux container, which the Mac simulator cannot reach |
 | Physical fold in Bitrig's 3D Duo simulator | — | Not run |
 
@@ -162,11 +163,12 @@ Scope: RLS, storage policies, SECURITY DEFINER functions, idempotency, logging, 
 
 ## Unresolved blockers
 
-1. **App UI in live mode is unverified.** The adapter is verified live on Linux; the app has not been run against a backend.
-2. **The hinge** has not been exercised on hardware or in Bitrig's 3D fold simulator with this build.
-3. **Accessibility of the redesigned compose screen:** fixed-size fonts (no Dynamic Type) and no full VoiceOver pass yet. The UI tests log a non-fatal SwiftUI "Invalid frame dimension" warning while composing.
-4. **Barrat's `PostcardComposerView`** is no longer used by the app (the compose screen is Zubair's `PostcardExperienceView`); decide whether to keep it in `PostcardUI`.
-5. **Hosted Supabase** is not deployed; there is no authorization or credentials for it.
+1. **Rerun the app tests on the iPhone Duo simulator** for the final tree (interrupted when the build Mac slept).
+2. **App UI in live mode is unverified.** The adapter is verified live on Linux; the app has not been run against a backend.
+3. **The hinge** has not been exercised on hardware or in Bitrig's 3D fold simulator with this build.
+4. **Accessibility of the redesigned compose screen:** fixed-size fonts (no Dynamic Type) and no full VoiceOver pass yet. The UI tests log a non-fatal SwiftUI "Invalid frame dimension" warning while composing.
+5. **Barrat's `PostcardComposerView`** is no longer used by the app (the compose screen is Zubair's `PostcardExperienceView`); decide whether to keep it in `PostcardUI`.
+6. **Hosted Supabase** is not deployed; there is no authorization or credentials for it.
 
 ## Next steps for a live release
 

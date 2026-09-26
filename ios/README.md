@@ -51,7 +51,7 @@ xcodebuild ... test -only-testing:PostcardUITests
 
 To check the button path, swap the destination for an ordinary iPhone, for example `'platform=iOS Simulator,name=iPhone 17 Pro'`.
 
-Latest results (Xcode 27.1): iPhone Duo on iOS 27.1 and iPhone 16 Pro on iOS 18.5 each pass 25/25 unit and 3/3 UI tests.
+Latest results (Xcode 27.1): iPhone 16 Pro on iOS 18.5 passes 25/25 unit and 3/3 UI tests on the final tree; the iPhone Duo passed the same on the first port of the redesign, and its rerun on the final tree is pending.
 
 | Target | Sources | Covers |
 |---|---|---|

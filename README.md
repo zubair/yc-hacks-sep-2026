@@ -42,9 +42,9 @@ Every row is an actual run from this integration. Fixture success is not present
 | `PostcardCore` | Linux, Swift 6.4, and Xcode 27.1 | **1/1 pass** |
 | `PostcardUI` package tests (form rules) | Xcode 27.1 simulator, and Linux against the real Core models | **6/6 pass** |
 | App build: all four packages plus the app, Swift 6 strict concurrency, iOS 17.0 target | Xcode 27.1 | **Succeeds** |
-| `PostcardAppTests`: presentation controller (hinge debounce, seal once, suppression), compose (folding never sends, one send per submission, retry keeps the draft id), platform, integration regressions | iPhone Duo simulator, iOS 27.1 | **25/25 pass** |
-| `PostcardUITests`: compose → open → write → seal → Continue → the recipient reads it; failed send → Try again stores exactly one postcard; offline → retry → recovery | iPhone Duo simulator, iOS 27.1 | **3/3 pass** |
-| Same two suites on an ordinary iPhone below the Duo gate (Open and Seal buttons, stacked back, standard toolbar) | iPhone 16 Pro simulator, **iOS 18.5** | **25/25 and 3/3 pass** |
+| `PostcardAppTests`: presentation controller (hinge debounce, seal once, suppression), compose (folding never sends, one send per submission, retry keeps the draft id), platform, integration regressions | iPhone 16 Pro simulator, iOS 18.5 (below the Duo gate) | **25/25 pass** on the final tree |
+| `PostcardUITests`: compose → open → write → seal → Continue → the recipient reads it; failed send → Try again stores exactly one postcard; offline → retry → recovery | iPhone 16 Pro simulator, iOS 18.5 | **3/3 pass** on the final tree |
+| Same two suites on the iPhone Duo | iPhone Duo simulator, iOS 27.1 | **25/25 and 3/3 passed** on the integration branch's first port of the redesign (`e1563fa`). The rerun on the final tree was interrupted when the build Mac went to sleep; rerun before a Duo demo. |
 | App in live mode against a backend, two accounts | — | **Not run.** The adapter is verified live on Linux; the app UI in live mode is not. |
 | Physical fold on hardware or Bitrig's 3D simulator | — | **Not run.** The hinge path is covered by controller tests. |
 | Hosted Supabase | — | **Not deployed** (needs separate authorization) |
@@ -166,7 +166,7 @@ Integration merged the four workstreams, replaced the app's local stubs with the
 
 ## Known limitations
 
-- **Not yet verified:** a physical fold on hardware or in Bitrig's 3D simulator, the app UI in live mode against a backend, and any hosted deployment.
+- **Not yet verified:** the final tree's app tests on the iPhone Duo simulator (the run was interrupted), a physical fold on hardware or in Bitrig's 3D simulator, the app UI in live mode against a backend, and any hosted deployment.
 - **Accessibility of the new compose screen:** it uses fixed-size display fonts (including a script face for the note), so it does not yet scale with Dynamic Type, and it has not had a full VoiceOver pass. The inbox, conversation, and sign-in screens use the audited `PostcardUI` components.
 - **Out of scope for v1:** push notifications, read receipts, printing, payments, and public links. A conversation shows the newest 50 postcards, with no pagination UI.
 - **Photos:** the server enforces bucket size and type and makes photos write-once, but it does not inspect image bytes. The client converts to JPEG and enforces 10 MB and 20 megapixels.
