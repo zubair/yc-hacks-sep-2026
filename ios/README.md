@@ -9,12 +9,12 @@ Native SwiftUI app shell, Duo presentation controller, view models, draft persis
 | Xcode | 27.1 (27A9269) with the iOS 27.1 SDK. It is needed to compile the Duo APIs. On the dev Mac it is `~/Downloads/Xcode.app`; `/Applications/Xcode.app` there is 27.0 and cannot build the app. |
 | Generator | XcodeGen 2.44 or later, reading `ios/project.yml`. The generated `Postcard.xcodeproj` and `App/Info.plist` are gitignored. |
 | App deployment target | iOS 17.0, the same as the packages |
-| Simulators | **iPhone Duo** on the iOS 27.1 runtime for hinge and vertical-bar behavior. Any iOS 17+ iPhone, for example iPhone 17 Pro on iOS 26.5, for the button fallback. |
+| Simulators | **iPhone Duo** on the iOS 27.1 runtime for hinge and vertical-bar behavior. Any other iPhone (for example iPhone 17 Pro) for the button path. |
 | Bitrig | 0.26.1. It opens `ios/` in place, and its iPhone Duo simulator has Fold controls (Closed / Partially Open / Fully Open). |
 
 ### Duo APIs and availability gating
 
-The iOS 27.1 SDK declares every Duo API the app uses as `@available(anyAppleOS 27.1)`:
+Every Duo API the app uses ships in the iOS 27.1 SDK (declared `anyAppleOS 27.1`; `visibilityPriority` is iOS 27.0):
 
 - `onHingeChange` and `DeviceHinge`
 - `ArrangementView` with `.split`
@@ -24,7 +24,7 @@ The iOS 27.1 SDK declares every Duo API the app uses as `@available(anyAppleOS 2
 
 Each use is inside `if #available(iOS 27.1, *)` or an `@available(iOS 27.1, *)` declaration. Only `Platform/HingePosture.swift` touches the hinge API.
 
-- **iOS 27.1 on a Duo:** unfolding the device opens the card and folding it seals the card. On the inner display, the composer sits in a split `ArrangementView` beside `DuoComposeStage`, and toolbars use vertical bars.
+- **iOS 27.1 on a Duo:** unfolding the device opens the card and folding it seals the card. The compose screen is the postcard (`PostcardExperienceView`): open, its back is an `ArrangementView` split with the note on one side of the fold and the address on the other; toolbars use vertical bars.
 - **Earlier iOS versions and ordinary iPhones:** the same controller is driven only by the **Open** and **Seal** buttons, with a standard navigation toolbar.
 - **Every device:** folding never sends.
 
@@ -49,11 +49,13 @@ xcodebuild ... test -only-testing:PostcardAppTests
 xcodebuild ... test -only-testing:PostcardUITests
 ```
 
-To check the button fallback, swap the destination for an ordinary iPhone, for example `'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'`.
+To check the button path, swap the destination for an ordinary iPhone, for example `'platform=iOS Simulator,name=iPhone 17 Pro'`.
+
+Latest results (Xcode 27.1): iPhone 16 Pro on iOS 18.5 passes 25/25 unit and 3/3 UI tests on the final tree; the iPhone Duo passed the same on the first port of the redesign, and its rerun on the final tree is pending.
 
 | Target | Sources | Covers |
 |---|---|---|
-| `PostcardAppTests` | `Tests/App` | The presentation controller: baseline posture, open/seal-once, jitter, debounce and deferred close, suppression, and manual fallback. Compose semantics: folding never sends, one send per submission, failed send keeps the draft id, and validation guards. Draft persistence, photo import limits, configuration, posture mapping, and photo loading with retry. |
+| `PostcardAppTests` | `Tests/App` | The presentation controller: baseline posture, open/seal-once, jitter, debounce and deferred close, suppression, and manual fallback. Compose semantics: folding never sends, one send per submission, failed send keeps the draft id, and validation guards. Draft persistence, photo import limits, configuration, posture mapping, and photo loading with retry. `IntegrationFixTests`: a sent draft is never persisted again, Try again re-sends only after a failed send, a new photo gets a new draft id, and account changes clear the previous account's data. |
 | `PostcardUITests` | `Tests/UI` | The fixture flow through the real app: compose, open, seal, explicit send, then the recipient reads the note and photo. A failed send followed by Retry stores exactly one postcard. The offline inbox shows Retry and recovers. It launches with `-resetDemo -forceDemo` and attaches screenshots to the result bundle. |
 
 Bitrig: **File → Open** the `ios/` folder, choose **iPhone Duo**, Run, then use the Fold controls beside the simulator.
@@ -62,7 +64,7 @@ Bitrig: **File → Open** the `ios/` folder, choose **iPhone Duo**, Run, then us
 
 The app starts in fixture mode when `Config/Local.xcconfig` is absent or the `-forceDemo` launch argument is passed. It uses the in-memory `FixturePostcardService`, and every screen shows the demo label. Nothing leaves the device.
 
-- The app starts signed in as **Alex Rivera** (`@alex`). New drafts come with a bundled sample photo (`DemoPhoto` asset).
+- The app starts signed in as **Alex Rivera** (`@alex`). The first demo draft is seeded (recipient Sam Lee, destination Cinque Terre; skipped under `-resetDemo`), and demo drafts get a bundled sample photo (`DemoPhoto` asset).
 - Flow: **Write** → type `sam` → find → select **Sam Lee** → **Open** (or unfold the Duo) → write a note → **Seal** (or fold) → **Send**. Go back; the inbox lists Sam Lee.
 - The **Demo** menu, in the inbox toolbar, appears only in fixture mode:
   - **View as Sam Lee / View as Alex Rivera** switches accounts, so one device shows both sides. Open Alex's conversation as Sam, then **Read their note**.
@@ -96,7 +98,8 @@ Values flow from `Config/Postcard.xcconfig`, which includes `Local.xcconfig`, to
 ```
 App/            PostcardApp → AppEnvironment (composition root: fixture vs Supabase, demo controls)
                 → RootView (loading | Auth | Main | can't-connect) → NavigationStack: Inbox → Compose | Conversation
-                Screens/ wire PostcardUI views to view models; DuoComposeStage (27.1 inner-display pane)
+                Screens/ PostcardExperienceView (compose: front with inline username lookup, fold-spread back,
+                         sealed), PostcardOrnaments; Inbox/Conversation/Auth wire PostcardUI views to view models
 Platform/       DevicePosture, HingePosture (the only hinge API use), Haptics, AppConfiguration, DraftStore, PhotoImporter
 Features/       PostcardPresentationController (Duo controller), SessionCoordinator, ComposeViewModel,
                 InboxViewModel (realtime refetch + reconnect), ConversationViewModel (merge by UUID, signed URLs, photo bytes)

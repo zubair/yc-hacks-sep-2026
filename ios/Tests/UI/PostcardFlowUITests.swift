@@ -122,31 +122,31 @@ final class PostcardFlowUITests: XCTestCase {
     item.tap()
   }
 
+  /// iOS 27.1 places the back button in the vertical toolbar; earlier versions keep it in the navigation bar.
   private func goBack() {
-    let back = app.navigationBars.buttons.element(boundBy: 0)
-    XCTAssertTrue(back.waitForExistence(timeout: 5))
-    back.tap()
+    let barBack = app.buttons["BackButton"]
+    if barBack.waitForExistence(timeout: 2) {
+      barBack.tap()
+    } else {
+      let back = app.navigationBars.buttons.element(boundBy: 0)
+      XCTAssertTrue(back.waitForExistence(timeout: 5))
+      back.tap()
+    }
   }
 
-  /// The composer scrolls beneath a pinned bottom action bar (and the keyboard, when shown). A tap on a
-  /// control that sits under the bar lands on the bar instead, so scroll it clear first.
+  /// Waits for the control to be hittable before tapping. If the keyboard covers it, dismiss the keyboard first.
   private func tapClearOfActionBar(_ target: XCUIElement) {
     XCTAssertTrue(target.waitForExistence(timeout: 5))
-    let scroll = app.scrollViews.containing(.any, identifier: target.identifier).firstMatch
-    var swipes = 0
-    while swipes < 4, !isClearOfActionBar(target) {
-      scroll.swipeUp(velocity: .slow)
-      swipes += 1
+    let done = app.buttons["Done"]
+    if !target.isHittable, app.keyboards.firstMatch.exists, done.exists { done.tap() }
+    let deadline = Date().addingTimeInterval(5)
+    while !target.isHittable, Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
+    if target.elementType == .textView {
+      // A tap on the editor's empty lower area may not place the caret; tap its first line.
+      target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
+    } else {
+      target.tap()
     }
-    target.tap()
-  }
-
-  private func isClearOfActionBar(_ target: XCUIElement) -> Bool {
-    guard target.isHittable else { return false }
-    let keyboard = app.keyboards.firstMatch
-    let bottom = keyboard.exists ? keyboard.frame.minY : app.windows.firstMatch.frame.maxY
-    // Action bar: a ~52 pt button with 12 pt padding, above the home indicator or the keyboard's Done bar.
-    return target.frame.maxY <= bottom - 120
   }
 
   private func element(_ identifier: String) -> XCUIElement {

@@ -13,23 +13,23 @@
       "p_recipient_name": "Grandma",
       "p_destination": "Cinque Terre",
       "p_message": "Somewhere between the sea and the sky, I thought of you.",
-      "p_photo_path": "00000000-0000-4000-a000-00000000a11c/6acee6b3-adc1-42a9-a029-e834bc178932/photo.jpg",
-      "p_client_request_id": "6acee6b3-adc1-42a9-a029-e834bc178932"
+      "p_photo_path": "00000000-0000-4000-a000-00000000a11c/1e6e8fe4-5b26-4531-a57c-25c7273ad732/photo.jpg",
+      "p_client_request_id": "1e6e8fe4-5b26-4531-a57c-25c7273ad732"
     }
   },
   "response": {
     "status": 200,
     "body": {
-      "id": "f4393960-0a8c-499e-952a-793d12027529",
+      "id": "9aa4038c-9cda-4556-a7ab-ee262ee4496e",
       "message": "Somewhere between the sea and the sky, I thought of you.",
       "sender_id": "00000000-0000-4000-a000-00000000a11c",
-      "created_at": "2026-09-26T20:59:44.965178Z",
-      "photo_path": "00000000-0000-4000-a000-00000000a11c/6acee6b3-adc1-42a9-a029-e834bc178932/photo.jpg",
+      "created_at": "2026-09-26T22:33:24.046968Z",
+      "photo_path": "00000000-0000-4000-a000-00000000a11c/1e6e8fe4-5b26-4531-a57c-25c7273ad732/photo.jpg",
       "destination": "Cinque Terre",
       "sender_name": "Alice",
       "recipient_id": "00000000-0000-4000-a000-000000000b0b",
       "recipient_name": "Grandma",
-      "conversation_id": "e3cb88d8-42f3-44b3-89bb-a66c201cc42f"
+      "conversation_id": "2a07c5b8-6d21-441a-87cb-597236fd0fa9"
     }
   }
 }

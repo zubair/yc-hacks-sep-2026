@@ -79,7 +79,7 @@ PostcardConversationView(messages:photoURLs:photoData:photoErrors:isLoading:erro
 PostcardAuthView(isLoading:error:notice:isDemo:onSignIn:onSignUp:)   // onSignIn(email, password); onSignUp(email, password, username, displayName)
 ```
 
-Callbacks are synchronous; the app starts and cancels its own tasks. Views have no Supabase import, network calls, local persistence, hinge listeners, or app-global coordinator. Do not infer 'sent' from the animation finishing. Loading and failure must preserve visible content. Zubair resolves signed photo URLs, downloads photo bytes, and provides state to the views.
+Integration note: the app's compose screen is now Zubair's `PostcardExperienceView` (the screen is the postcard: front, fold-spread back, sealed), built with `PostcardStyle` and app-side ornaments. `PostcardComposerView` remains in `PostcardUI` but the app no longer uses it. Callbacks are synchronous; the app starts and cancels its own tasks. Views have no Supabase import, network calls, local persistence, hinge listeners, or app-global coordinator. Do not infer 'sent' from the animation finishing. Loading and failure must preserve visible content. Zubair resolves signed photo URLs, downloads photo bytes, and provides state to the views.
 
 ## Motion boundary (Pranav owns; Barrat composes)
 
@@ -91,9 +91,9 @@ An observable main-actor controller consumes verified native hinge events and ma
 
 The app observes Apple's `onHingeChange` where iOS 27.1 is available. Build Duo support with Xcode 27.1; Bitrig's 3D simulator controls the Duo pose during manual testing. Earlier iOS versions retain the Open and Seal buttons.
 
-Deployment and gating (accepted at integration): the app target is iOS 17.0, the same as the packages. The Duo APIs the app uses are declared `@available(anyAppleOS 27.1)` in the iOS 27.1 SDK: `onHingeChange`/`DeviceHinge`, `ArrangementView` with `.split`, `GeometryProxy.reservedRegions`, `ToolbarItem.axisBehavior`/`visibilityPriority`, and `ToolbarOverflowMenu`. Each use is inside `if #available(iOS 27.1, *)` or an `@available(iOS 27.1, *)` declaration. Only `ios/Platform/HingePosture.swift` touches the hinge API. On iOS 17 to 27.0 and on phones without a hinge, the same controller is driven only by the Open and Seal buttons, and the app uses a standard navigation toolbar.
+Deployment and gating (accepted at integration): the app target is iOS 17.0, the same as the packages. The Duo APIs the app uses ship in the iOS 27.1 SDK (`visibilityPriority` is declared for iOS 27.0, the rest for `anyAppleOS 27.1`): `onHingeChange`/`DeviceHinge`, `ArrangementView` with `.split`, `GeometryProxy.reservedRegions`, `ToolbarItem.axisBehavior`/`visibilityPriority`, and `ToolbarOverflowMenu`. Each use is inside `if #available(iOS 27.1, *)` or an `@available(iOS 27.1, *)` declaration. Only `ios/Platform/HingePosture.swift` touches the hinge API. On iOS 17 to 27.0 and on phones without a hinge, the same controller is driven only by the Open and Seal buttons, and the app uses a standard navigation toolbar.
 
-Draft entry: Write and Reply resume an unsent draft that has content, and never discard it. Reply readdresses a resumed draft to the conversation peer unless the draft is sealed. A new draft, with a new id, starts only when the current one is blank or has just been sent.
+Draft entry: Write and Reply resume an unsent draft that has content, and never discard it. Choosing a new photo gives the draft a new id (an earlier attempt may have uploaded the old photo under the old id); a confirmed-sent draft is never persisted again. Signing out or switching account clears the inbox and the unsent draft. Reply readdresses a resumed draft to the conversation peer unless the draft is sealed. A new draft, with a new id, starts only when the current one is blank or has just been sent.
 
 ## Configuration
 

@@ -8,13 +8,13 @@
       "Content-Type": "application/json"
     },
     "body": {
-      "p_recipient_id": "bafec294-16e8-4626-9831-c4d76df32cd7",
+      "p_recipient_id": "3e5861a2-aaa4-4b7c-ba0b-122cb392c40a",
       "p_sender_name": "Alice",
       "p_recipient_name": "Grandma",
       "p_destination": "Cinque Terre",
       "p_message": "Somewhere between the sea and the sky, I thought of you.",
-      "p_photo_path": "00000000-0000-4000-a000-00000000a11c/6acee6b3-adc1-42a9-a029-e834bc178932/photo.jpg",
-      "p_client_request_id": "90e26961-890b-4421-9623-26053ee6503e"
+      "p_photo_path": "00000000-0000-4000-a000-00000000a11c/1e6e8fe4-5b26-4531-a57c-25c7273ad732/photo.jpg",
+      "p_client_request_id": "ef52c146-7676-4c7f-9718-fcf031c1563a"
     }
   },
   "response": {

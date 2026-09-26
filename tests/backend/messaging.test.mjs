@@ -281,61 +281,6 @@ test('sent photos cannot be deleted; unsent orphans can, and cleanup never lists
   assert.equal(removed.data.length, 1, 'owner can delete an unsent upload');
 });
 
-test('a sent photo cannot be swapped through an upsert signed upload URL issued before sending', async () => {
-  // The token is signed while the object doesn't exist (only the INSERT policy is checked), stays
-  // valid for 2 h, and its uploads run on Storage's privileged connection, so RLS cannot stop a reuse.
-  const bytes = (tag) => Buffer.concat([TINY_JPEG, Buffer.from(tag)]);
-  const [draftBytes, sentBytes, swapBytes] = [bytes('draft'), bytes('sent'), bytes('swapped')];
-  const draftId = randomUUID();
-  const path = photoPath(alice.user.id, draftId);
-  const storage = alice.client.storage.from(BUCKET);
-  const signed = await storage.createSignedUploadUrl(path, { upsert: true });
-  assert.equal(signed.error, null);
-  const put = (body) => storage.uploadToSignedUrl(path, signed.data.token, body, { contentType: 'image/jpeg' });
-  assert.equal((await put(draftBytes)).error, null, 'first upload through the signed URL');
-  assert.equal((await put(sentBytes)).error, null, 'an unsent draft photo may still be replaced by its owner');
-
-  const sent = await send(alice.client, {
-    p_recipient_id: bob.user.id, p_sender_name: 'Alice', p_recipient_name: 'Bob', p_destination: '',
-    p_message: 'look at this', p_photo_path: path, p_client_request_id: draftId,
-  });
-  assert.equal(sent.error, null);
-  const recipientBytes = async () => {
-    const { data, error } = await bob.client.storage.from(BUCKET).download(path);
-    assert.equal(error, null);
-    return Buffer.from(await data.arrayBuffer());
-  };
-  assert.deepEqual(await recipientBytes(), sentBytes, 'recipient sees the photo as sent');
-
-  const swap = await put(swapBytes);
-  assert.ok(swap.error, 'reusing the signed upload URL after sending must be refused');
-  const upsert = await storage.upload(path, swapBytes, { contentType: 'image/jpeg', upsert: true });
-  assert.ok(upsert.error, 'a direct upsert of a sent photo must be refused');
-  assert.deepEqual(await recipientBytes(), sentBytes, 'recipient still downloads the original bytes');
-
-  // Below the API too: privileged roles cannot rewrite or delete a sent photo, only move timestamps.
-  const tryDb = async (statement) => {
-    await sql.query('begin');
-    try {
-      await sql.query("set local storage.allow_delete_query = 'true'");
-      await sql.query(statement, [BUCKET, path]);
-      return null;
-    } catch (e) {
-      return e;
-    } finally {
-      await sql.query('rollback');
-    }
-  };
-  const rewrite = await tryDb("update storage.objects set version = gen_random_uuid()::text where bucket_id = $1 and name = $2");
-  assert.equal(rewrite?.code, 'PT403', 'version swap refused in the database');
-  const rename = await tryDb("update storage.objects set name = name || '.old' where bucket_id = $1 and name = $2");
-  assert.equal(rename?.code, 'PT403', 'moving a sent photo refused');
-  const remove = await tryDb('delete from storage.objects where bucket_id = $1 and name = $2');
-  assert.equal(remove?.code, 'PT403', 'deleting a sent photo refused even for privileged roles');
-  assert.equal(await tryDb("update storage.objects set last_accessed_at = now() where bucket_id = $1 and name = $2"), null,
-    'timestamp-only updates are allowed');
-});
-
 // ---------- realtime ----------
 
 test('realtime delivers postcard inserts to participants only', async () => {

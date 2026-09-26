@@ -44,10 +44,13 @@ final class ComposeViewModel {
   }
 
   var canSend: Bool {
-    !isSending
-      && (presentation.state == .writing || presentation.state == .sealed)
-      && !draft.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      && (try? PostcardValidation.validate(draft)) != nil
+    guard !isSending, presentation.state == .writing || presentation.state == .sealed else { return false }
+    // An empty signature is filled from the profile at send time, exactly as `send()` does. The demo seed runs
+    // before the session loads, so without this Continue would stay disabled on the seeded draft.
+    var candidate = draft
+    if candidate.senderName.isEmpty { candidate.senderName = session.profile?.displayName ?? "" }
+    return !candidate.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && (try? PostcardValidation.validate(candidate)) != nil
   }
 
   // MARK: Draft lifecycle
