@@ -133,6 +133,11 @@ final class PostcardFlowUITests: XCTestCase {
   private func tapClearOfActionBar(_ target: XCUIElement) {
     XCTAssertTrue(target.waitForExistence(timeout: 5))
     let scroll = app.scrollViews.containing(.any, identifier: target.identifier).firstMatch
+    // The postcard front has no scroll view or pinned action bar; a plain tap is the right move there.
+    guard scroll.exists else {
+      target.tap()
+      return
+    }
     var swipes = 0
     while swipes < 4, !isClearOfActionBar(target) {
       scroll.swipeUp(velocity: .slow)
