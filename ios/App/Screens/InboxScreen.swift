@@ -84,6 +84,7 @@ struct InboxScreen: View {
       Menu {
         if let peer = env.demoPeerName {
           Button("View as \(peer)", systemImage: "person.2") { Task { await env.switchDemoAccount() } }
+            .disabled(env.isDemoOffline)
         }
         Button("Fail the next send", systemImage: "exclamationmark.triangle") { Task { await env.failNextDemoSend() } }
         Button(env.isDemoOffline ? "Go back online" : "Simulate offline", systemImage: env.isDemoOffline ? "wifi" : "wifi.slash") {

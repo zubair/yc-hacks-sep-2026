@@ -23,15 +23,15 @@ final class ConversationViewModel {
 
   func load() async {
     isLoading = true
-    defer { isLoading = false }
     do {
       let page = try await service.messages(conversationId: conversationId, before: nil, limit: 50)
       merge(page)
       errorMessage = nil
-      await resolvePhotos()
     } catch {
       errorMessage = UserFacingError.describe(error)
     }
+    isLoading = false
+    await resolveMissingPhotos()
   }
 
   func observeUpdates() async {
@@ -61,9 +61,10 @@ final class ConversationViewModel {
     await resolvePhoto(for: message)
   }
 
-  /// Signed URLs expire (≤ 5 min), so re-resolve on every load rather than caching forever.
-  private func resolvePhotos() async {
-    for message in messages {
+  /// Messages and their photos are immutable, so downloaded bytes are kept for the life of the screen. Only photos
+  /// without bytes are fetched, each through a freshly signed URL (they expire within 5 minutes).
+  private func resolveMissingPhotos() async {
+    for message in messages where photoData[message.id] == nil {
       await resolvePhoto(for: message)
     }
   }

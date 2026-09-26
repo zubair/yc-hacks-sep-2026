@@ -34,7 +34,8 @@ struct ConversationScreen: View {
     .navigationTitle(conversation.peer.displayName)
     .navigationBarTitleDisplayMode(.inline)
     .task {
-      let model = ConversationViewModel(service: env.service, conversationId: conversation.id)
+      // Reappearing (e.g. back from Reply) keeps loaded messages and photos; it only refetches.
+      let model = self.model ?? ConversationViewModel(service: env.service, conversationId: conversation.id)
       self.model = model
       await model.load()
       await model.observeUpdates()

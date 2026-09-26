@@ -74,10 +74,11 @@ final class SessionCoordinator {
     }
   }
 
+  /// Always ends in `.signedOut`: the client drops its local session even when the server call fails offline.
   func signOut() async {
     await perform {
+      defer { state = .signedOut }
       try await service.signOut()
-      state = .signedOut
     }
   }
 

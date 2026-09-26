@@ -52,7 +52,7 @@ final class PostcardFlowUITests: XCTestCase {
     XCTAssertFalse(element("sent-state").exists)
     attachScreenshot("send-failed")
 
-    app.buttons["retry-postcard"].tap()
+    tapClearOfActionBar(app.buttons["retry-postcard"])
     XCTAssertTrue(element("sent-state").waitForExistence(timeout: 10))
 
     goBack()
@@ -83,19 +83,19 @@ final class PostcardFlowUITests: XCTestCase {
     app.buttons["compose-postcard"].tap()
     let recipient = app.textFields["recipient-username"]
     XCTAssertTrue(recipient.waitForExistence(timeout: 10))
-    recipient.tap()
+    tapClearOfActionBar(recipient)
     recipient.typeText(username)
-    app.buttons["find-recipient"].tap()
+    tapClearOfActionBar(app.buttons["find-recipient"])
     let select = app.buttons["select-recipient"]
     XCTAssertTrue(select.waitForExistence(timeout: 10), app.debugDescription)
-    select.tap()
+    tapClearOfActionBar(select)
     XCTAssertTrue(element("selected-recipient").waitForExistence(timeout: 5))
     attachScreenshot("front")
 
     app.buttons["open-postcard"].tap()
     let editor = element("message-editor")
     XCTAssertTrue(editor.waitForExistence(timeout: 5))
-    editor.tap()
+    tapClearOfActionBar(editor)
     editor.typeText(note)
     let done = app.buttons["Done"]
     if done.waitForExistence(timeout: 3) { done.tap() }
@@ -126,6 +126,27 @@ final class PostcardFlowUITests: XCTestCase {
     let back = app.navigationBars.buttons.element(boundBy: 0)
     XCTAssertTrue(back.waitForExistence(timeout: 5))
     back.tap()
+  }
+
+  /// The composer scrolls beneath a pinned bottom action bar (and the keyboard, when shown). A tap on a
+  /// control that sits under the bar lands on the bar instead, so scroll it clear first.
+  private func tapClearOfActionBar(_ target: XCUIElement) {
+    XCTAssertTrue(target.waitForExistence(timeout: 5))
+    let scroll = app.scrollViews.containing(.any, identifier: target.identifier).firstMatch
+    var swipes = 0
+    while swipes < 4, !isClearOfActionBar(target) {
+      scroll.swipeUp(velocity: .slow)
+      swipes += 1
+    }
+    target.tap()
+  }
+
+  private func isClearOfActionBar(_ target: XCUIElement) -> Bool {
+    guard target.isHittable else { return false }
+    let keyboard = app.keyboards.firstMatch
+    let bottom = keyboard.exists ? keyboard.frame.minY : app.windows.firstMatch.frame.maxY
+    // Action bar: a ~52 pt button with 12 pt padding, above the home indicator or the keyboard's Done bar.
+    return target.frame.maxY <= bottom - 120
   }
 
   private func element(_ identifier: String) -> XCUIElement {

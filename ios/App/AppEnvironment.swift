@@ -20,6 +20,7 @@ final class AppEnvironment {
   let inbox: InboxViewModel
   let haptics: any HapticsPlaying
   private(set) var isDemoOffline = false
+  private var lastAccountId: UUID?
 
   init(mode: Mode, service: any PostcardService, demo: FixturePostcardService? = nil, draftStore: any DraftStoring, haptics: any HapticsPlaying, defaultPhoto: Data? = nil) {
     self.mode = mode
@@ -58,10 +59,31 @@ final class AppEnvironment {
   }
 
   func switchDemoAccount() async {
-    guard let demo, !compose.isSending else { return }
+    // Offline, the restore would fail and strand the demo on the "can't connect" screen.
+    guard let demo, !compose.isSending, !isDemoOffline else { return }
     await demo.switchDemoUser()
     await session.restore()
-    compose.startNewDraft()
+  }
+
+  /// On sign-out or a switch to a different account (including the demo switch), nothing from the previous
+  /// account (conversations, message previews, or the unsent draft) may remain visible or sendable.
+  /// `.loading` and `.unavailable` are not account changes: an offline relaunch keeps the draft.
+  func sessionChanged(to state: SessionCoordinator.State) {
+    switch state {
+    case .signedIn(let profile):
+      if let previous = lastAccountId, previous != profile.id { clearAccountData() }
+      lastAccountId = profile.id
+    case .signedOut:
+      if lastAccountId != nil { clearAccountData() }
+      lastAccountId = nil
+    case .loading, .unavailable:
+      break
+    }
+  }
+
+  private func clearAccountData() {
+    inbox.reset()
+    compose.discardDraft()
   }
 
   func failNextDemoSend() async {

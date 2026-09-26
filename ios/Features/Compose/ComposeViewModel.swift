@@ -19,6 +19,9 @@ final class ComposeViewModel {
   private(set) var isSending = false
   private(set) var lastSent: PostcardMessage?
   var errorMessage: String?
+  /// True only when `errorMessage` describes a failed `service.send`. The composer's "Try again" re-sends only
+  /// then; for photo or validation problems it just dismisses the message.
+  private(set) var canRetrySend = false
 
   private let service: any PostcardService
   private let presentation: PostcardPresentationController
@@ -43,9 +46,8 @@ final class ComposeViewModel {
   var canSend: Bool {
     !isSending
       && (presentation.state == .writing || presentation.state == .sealed)
-      && draft.recipientId != nil
-      && draft.photoData != nil
-      && !draft.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !draft.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && (try? PostcardValidation.validate(draft)) != nil
   }
 
   // MARK: Draft lifecycle
@@ -56,6 +58,7 @@ final class ComposeViewModel {
     lookupResult = recipient
     lookupMessage = nil
     errorMessage = nil
+    canRetrySend = false
     lastSent = nil
     presentation.resetForNewDraft()
   }
@@ -81,17 +84,23 @@ final class ComposeViewModel {
 
   func discardDraft() {
     guard !isSending else { return }
+    saveTask?.cancel()
     draftStore.clear()
     startNewDraft()
   }
 
+  /// A confirmed-sent draft is never written back: after relaunch it would otherwise return with its old id.
+  private var isPersistable: Bool { !sentDraftIds.contains(draft.id) && presentation.state != .sent }
+
   func persistNow() {
     saveTask?.cancel()
+    guard isPersistable else { return }
     draftStore.save(draft)
   }
 
   private func scheduleSave() {
     saveTask?.cancel()
+    guard isPersistable else { return }
     let snapshot = draft
     saveTask = Task { [draftStore] in
       try? await Task.sleep(for: .milliseconds(300))
@@ -130,11 +139,31 @@ final class ComposeViewModel {
   func importPhoto(from item: PhotosPickerItem) async {
     do {
       guard let data = try await item.loadTransferable(type: Data.self) else { throw PhotoImportError.unreadable }
-      draft.photoData = try photoImporter.makeJPEG(from: data)
-      errorMessage = nil
+      setPhoto(try photoImporter.makeJPEG(from: data))
     } catch {
       errorMessage = UserFacingError.describe(error)
+      canRetrySend = false
     }
+  }
+
+  /// A new photo gets a new idempotency key. An earlier attempt may already have uploaded the old photo under
+  /// the old draft id, and a retry with that id would reuse the old upload instead of this photo.
+  func setPhoto(_ jpeg: Data) {
+    guard !isSending, jpeg != draft.photoData else { return }
+    draft.photoData = jpeg
+    draft.id = UUID()
+    errorMessage = nil
+    canRetrySend = false
+  }
+
+  func dismissError() {
+    errorMessage = nil
+    canRetrySend = false
+  }
+
+  /// The composer's "Try again": re-send only after a failed send, otherwise just clear the message.
+  func retry() async {
+    if canRetrySend { await send() } else { dismissError() }
   }
 
   // MARK: Send — the only path that publishes
@@ -146,25 +175,31 @@ final class ComposeViewModel {
     guard draft.photoData != nil else { return fail("Add a photo to the front of your postcard.") }
     guard !draft.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return fail("Write something on the back first.") }
     if draft.senderName.isEmpty { draft.senderName = session.profile?.displayName ?? "" }
+    guard !draft.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return fail("Add your name to sign the postcard.") }
+    do { try PostcardValidation.validate(draft) } catch { return fail(UserFacingError.describe(error)) }
     guard presentation.beginSending() else { return fail("Open your postcard before sending.") }
     let submission = draft
     isSending = true
     errorMessage = nil
+    canRetrySend = false
     persistNow()
     defer { isSending = false }
     do {
       let message = try await service.send(draft: submission)
       sentDraftIds.insert(submission.id)
       lastSent = message
+      saveTask?.cancel()
       presentation.sendSucceeded()
       draftStore.clear()
     } catch {
       presentation.sendFailed()
       errorMessage = UserFacingError.describe(error)
+      canRetrySend = true
     }
   }
 
   private func fail(_ message: String) {
     errorMessage = message
+    canRetrySend = false
   }
 }

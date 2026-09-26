@@ -20,6 +20,7 @@ public struct PostcardComposerView: View {
     private let onRetry: () -> Void
     @State private var username = ""
     @FocusState private var messageFocused: Bool
+    @FocusState private var usernameFocused: Bool
     @Environment(\.dynamicTypeSize) private var typeSize
 
     public init(draft: Binding<PostcardDraft>, state: PostcardPresentationState,
@@ -76,6 +77,10 @@ public struct PostcardComposerView: View {
                     .scrollDismissesKeyboard(.interactively)
                     .onChange(of: messageFocused) { _, focused in
                         if focused { scroll.scrollTo("message-editor", anchor: .center) }
+                    }
+                    .onChange(of: recipientLookupResult?.id) { _, id in
+                        // The match appears below the field; bring it out from under the action bar.
+                        if id != nil { withAnimation { scroll.scrollTo("select-recipient", anchor: .center) } }
                     }
                 }
             }
@@ -201,7 +206,7 @@ public struct PostcardComposerView: View {
                     .textInputAutocapitalization(.never).autocorrectionDisabled().textContentType(.username)
                     .padding(12).background(PostcardStyle.card, in: RoundedRectangle(cornerRadius: 10))
                     .accessibilityLabel("Recipient username").accessibilityIdentifier("recipient-username")
-                    .onSubmit { lookup() }
+                    .focused($usernameFocused).onSubmit { lookup() }
                 Button(action: lookup) {
                     if isLookingUpRecipient { ProgressView().accessibilityLabel("Finding recipient") }
                     else { Image(systemName: "magnifyingglass").frame(width: 44, height: 44) }
@@ -213,7 +218,7 @@ public struct PostcardComposerView: View {
                 Button { onSelectRecipient(profile) } label: {
                     Label("Choose \(profile.displayName) (@\(profile.username))", systemImage: "person.crop.circle.badge.plus")
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                }.accessibilityIdentifier("select-recipient")
+                }.accessibilityIdentifier("select-recipient").id("select-recipient")
             }
             if let recipientLookupMessage {
                 Text(recipientLookupMessage).font(.caption).foregroundStyle(PostcardStyle.muted)
@@ -223,6 +228,7 @@ public struct PostcardComposerView: View {
     private func lookup() {
         let query = PostcardFormRules.normalizedUsername(username)
         guard !isLookingUpRecipient, PostcardFormRules.validUsername(query) else { return }
+        usernameFocused = false  // otherwise the keyboard covers the match that appears below the field
         onLookupRecipient(query)
     }
 }

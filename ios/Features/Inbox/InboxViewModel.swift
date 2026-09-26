@@ -14,6 +14,12 @@ final class InboxViewModel {
 
   init(service: any PostcardService) { self.service = service }
 
+  /// Drops everything from the previous account.
+  func reset() {
+    conversations = []
+    errorMessage = nil
+  }
+
   func load() async {
     isLoading = true
     defer { isLoading = false }

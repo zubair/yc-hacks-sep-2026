@@ -63,7 +63,7 @@ struct ComposeScreen: View {
       onOpen: { env.presentation.open(source: .manual) },
       onSeal: { env.presentation.seal(source: .manual) },
       onSend: { Task { await compose.send() } },
-      onRetry: { Task { await compose.send() } }
+      onRetry: { Task { await compose.retry() } }
     )
     .disabled(compose.isSending)
   }
