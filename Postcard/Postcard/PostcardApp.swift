@@ -294,7 +294,7 @@ struct PostcardHome: View {
     }
 }
 
-// MARK: - Fold flow (integration seam for Zubair's DuoInteractionController)
+// MARK: - Fold flow (integration seam for Zabir's DuoInteractionController)
 
 /// Posture reduced to what the flow needs. Layout follows reserved regions; the hinge only drives transitions.
 enum FoldPosture: Equatable {
