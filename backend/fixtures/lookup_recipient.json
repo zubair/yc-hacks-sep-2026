@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/rest/v1/rpc/lookup_recipient",
+    "headers": {
+      "apikey": "<SUPABASE_PUBLISHABLE_KEY>",
+      "Authorization": "Bearer <user access token>",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "p_username": "BOB"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "id": "00000000-0000-4000-a000-000000000b0b",
+      "username": "bob",
+      "display_name": "Bob"
+    }
+  }
+}

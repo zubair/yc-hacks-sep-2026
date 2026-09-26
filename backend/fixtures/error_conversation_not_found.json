@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/rest/v1/rpc/list_messages",
+    "headers": {
+      "apikey": "<SUPABASE_PUBLISHABLE_KEY>",
+      "Authorization": "Bearer <user access token>",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "p_conversation_id": "e3cb88d8-42f3-44b3-89bb-a66c201cc42f",
+      "p_before": null,
+      "p_limit": 50
+    }
+  },
+  "response": {
+    "status": 404,
+    "body": {
+      "code": "PT404",
+      "details": null,
+      "hint": "not_found",
+      "message": "conversation not found"
+    }
+  }
+}
