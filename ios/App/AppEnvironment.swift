@@ -45,7 +45,12 @@ final class AppEnvironment {
     // Live mode (Local.xcconfig present) still goes through PostcardAuthView.
     let fixture = FixturePostcardService(signedIn: true)
     let samplePhoto = UIImage(named: "DemoPhoto")?.jpegData(compressionQuality: 0.85)
-    return AppEnvironment(mode: .fixture, service: fixture, demo: fixture, draftStore: draftStore, haptics: SystemHaptics(), defaultPhoto: samplePhoto)
+    let environment = AppEnvironment(mode: .fixture, service: fixture, demo: fixture, draftStore: draftStore, haptics: SystemHaptics(), defaultPhoto: samplePhoto)
+    // Skip the seed under UI tests (`-resetDemo`): they address the postcard themselves.
+    if !arguments.contains("-resetDemo") {
+      environment.compose.seedDemoDraftIfEmpty(recipient: FixturePostcardService.recipient, destination: "Cinque Terre")
+    }
+    return environment
   }
 
   // MARK: Demo-only controls (fixture mode). Clearly simulated; never available in live mode.

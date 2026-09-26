@@ -82,6 +82,17 @@ final class ComposeViewModel {
       || (draft.photoData != nil && draft.photoData != defaultPhoto)
   }
 
+  /// Demo only: give a blank first draft a recipient and a place so the fold story starts immediately.
+  /// The demo photo is already the default; message stays empty so the person writes it.
+  func seedDemoDraftIfEmpty(recipient: PostcardProfile, destination: String) {
+    guard draft.message.isEmpty, draft.recipientId == nil, draft.destination.isEmpty else { return }
+    draft.recipientId = recipient.id
+    draft.recipientName = recipient.displayName
+    draft.destination = destination
+    if draft.senderName.isEmpty { draft.senderName = session.profile?.displayName ?? "" }
+    lookupResult = nil
+  }
+
   func discardDraft() {
     guard !isSending else { return }
     saveTask?.cancel()
