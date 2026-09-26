@@ -3,6 +3,7 @@ import Observation
 import PhotosUI
 import SwiftUI
 import PostcardCore
+import PostcardServices
 
 /// Compose state: draft persistence, recipient lookup, photo import, and the only send path.
 @MainActor

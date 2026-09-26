@@ -1,5 +1,6 @@
 import Foundation
 import PostcardCore
+import PostcardServices
 @testable import Postcard
 
 @MainActor

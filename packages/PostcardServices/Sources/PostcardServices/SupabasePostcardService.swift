@@ -45,7 +45,18 @@ public actor SupabasePostcardService: PostcardService {
     private let decoder: JSONDecoder
 
     public init(url: URL, publishableKey: String) {
-        client = SupabaseClient(supabaseURL: url, supabaseKey: publishableKey)
+        #if os(Linux) || os(Android)
+        // No Keychain off Apple platforms: keep the session in memory (Linux CI and live contract tests).
+        let options = SupabaseClientOptions(auth: .init(storage: InMemoryAuthStorage()))
+        #else
+        let options = SupabaseClientOptions()
+        #endif
+        self.init(client: SupabaseClient(supabaseURL: url, supabaseKey: publishableKey, options: options))
+    }
+
+    /// Injects a configured client, e.g. one with isolated session storage per test identity.
+    init(client: SupabaseClient) {
+        self.client = client
         decoder = PostcardWireCoding.decoder()
     }
 
@@ -243,4 +254,14 @@ public actor SupabasePostcardService: PostcardService {
         }
         return .server("Please try again.")
     }
+}
+
+/// Process-local session storage for platforms without Keychain and for tests that need isolated identities.
+final class InMemoryAuthStorage: AuthLocalStorage, @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String: Data] = [:]
+
+    func store(key: String, value: Data) throws { lock.withLock { values[key] = value } }
+    func retrieve(key: String) throws -> Data? { lock.withLock { values[key] } }
+    func remove(key: String) throws { lock.withLock { _ = values.removeValue(forKey: key) } }
 }
