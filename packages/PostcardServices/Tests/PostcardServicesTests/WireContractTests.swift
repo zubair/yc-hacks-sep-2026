@@ -21,8 +21,12 @@ final class WireContractTests: XCTestCase {
         let messages = try decoder.decode([PostcardMessage].self, from: responseBody("list_messages.json"))
         XCTAssertEqual(conversations.first?.latestMessage, sent)
         XCTAssertEqual(messages.first, sent)
-        XCTAssertEqual(sent.photoPath, "00000000-0000-4000-a000-00000000a11c/6acee6b3-adc1-42a9-a029-e834bc178932/photo.jpg")
-        XCTAssertEqual(PostcardWireCoding.timestamp(sent.createdAt), "2026-09-26T20:59:44.965178Z")
+        // Compare with the recording's own raw values so re-recorded fixtures stay valid.
+        let raw = try XCTUnwrap(JSONSerialization.jsonObject(with: responseBody("send_postcard.json")) as? [String: Any])
+        XCTAssertEqual(sent.photoPath, raw["photo_path"] as? String)
+        XCTAssertTrue(sent.photoPath.hasSuffix("/photo.jpg"))
+        // Microseconds survive decoding and re-encoding for p_before.
+        XCTAssertEqual(PostcardWireCoding.timestamp(sent.createdAt), raw["created_at"] as? String)
     }
 
     func testRecordedRPCErrorCodesMapToServiceErrors() throws {
