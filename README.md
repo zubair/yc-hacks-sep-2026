@@ -20,10 +20,10 @@ Pick someone by their exact username, put a photo on the front, and write on the
 Without backend configuration the app runs in **fixture mode**: an in-memory service with two demo accounts, clearly labeled on every screen. Nothing leaves the device.
 
 1. `cd ios && xcodegen generate && open Postcard.xcodeproj`, then run on the iPhone Duo simulator or any iPhone simulator (Xcode 27.1).
-2. You are **Alex Rivera** with an empty inbox. Tap **Write a postcard**. The first draft is ready: a Cinque Terre photo, addressed to **Sam Lee**.
-3. **Open to write** (or unfold the Duo). The back spreads across the fold: write a note on the left; the address, stamp, and postmark are on the right. **Address** changes the recipient by exact username.
-4. **Prepare to send** (or fold the Duo). The card is sealed. Nothing has been sent.
-5. **Continue**. Only this tap sends; the card shows it was sent (simulated in the demo).
+2. You are **Alex Rivera** with an empty inbox. Tap **Write a postcard**. The first draft is ready: a photo on the front, "Greetings from Cinque Terre", addressed to **Sam Lee**. To address it to someone else, type their exact username in the margin under the card and tap **Find**.
+3. **Open to write** (or unfold the Duo). The back spreads across the fold: write a note on one side; the address, stamp, and postmark are on the other.
+4. **Prepare to send** (or fold the Duo). The card is sealed: "Ready to send". Nothing has been sent.
+5. **Continue**. Only this tap sends; the card shows "Sent to Sam Lee" (simulated in the demo).
 6. Go back: the inbox now lists Sam Lee.
 7. **Demo → View as Sam Lee**, open Alex Rivera's postcard, and tap **Read their note**.
 

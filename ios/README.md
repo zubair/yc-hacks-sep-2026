@@ -64,7 +64,7 @@ Bitrig: **File → Open** the `ios/` folder, choose **iPhone Duo**, Run, then us
 
 The app starts in fixture mode when `Config/Local.xcconfig` is absent or the `-forceDemo` launch argument is passed. It uses the in-memory `FixturePostcardService`, and every screen shows the demo label. Nothing leaves the device.
 
-- The app starts signed in as **Alex Rivera** (`@alex`). The first draft is seeded (Cinque Terre photo, destination, recipient Sam Lee), and new demo drafts get the same bundled photo (`SamplePhoto` asset).
+- The app starts signed in as **Alex Rivera** (`@alex`). The first demo draft is seeded (recipient Sam Lee, destination Cinque Terre; skipped under `-resetDemo`), and demo drafts get a bundled sample photo (`DemoPhoto` asset).
 - Flow: **Write** → type `sam` → find → select **Sam Lee** → **Open** (or unfold the Duo) → write a note → **Seal** (or fold) → **Send**. Go back; the inbox lists Sam Lee.
 - The **Demo** menu, in the inbox toolbar, appears only in fixture mode:
   - **View as Sam Lee / View as Alex Rivera** switches accounts, so one device shows both sides. Open Alex's conversation as Sam, then **Read their note**.
@@ -98,8 +98,8 @@ Values flow from `Config/Postcard.xcconfig`, which includes `Local.xcconfig`, to
 ```
 App/            PostcardApp → AppEnvironment (composition root: fixture vs Supabase, demo controls)
                 → RootView (loading | Auth | Main | can't-connect) → NavigationStack: Inbox → Compose | Conversation
-                Screens/ PostcardExperienceView (compose: front, fold-spread back, sealed), RecipientSheet,
-                         PostcardOrnaments; Inbox/Conversation/Auth wire PostcardUI views to view models
+                Screens/ PostcardExperienceView (compose: front with inline username lookup, fold-spread back,
+                         sealed), PostcardOrnaments; Inbox/Conversation/Auth wire PostcardUI views to view models
 Platform/       DevicePosture, HingePosture (the only hinge API use), Haptics, AppConfiguration, DraftStore, PhotoImporter
 Features/       PostcardPresentationController (Duo controller), SessionCoordinator, ComposeViewModel,
                 InboxViewModel (realtime refetch + reconnect), ConversationViewModel (merge by UUID, signed URLs, photo bytes)
