@@ -1,0 +1,12 @@
+{
+  "name": "postcard-backend-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 --test-timeout=60000 *.test.mjs"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.57.0",
+    "pg": "^8.16.0"
+  }
+}

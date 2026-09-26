@@ -1,0 +1,11 @@
+{
+  "name": "postcard-backend-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cleanup-orphans": "node scripts/cleanup-orphans.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.0"
+  }
+}
