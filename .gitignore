@@ -1,0 +1,14 @@
+# Local credentials and generated files
+.env
+.env.*
+!.env.example
+*.xcuserstate
+xcuserdata/
+.DS_Store
+.build/
+DerivedData/
+build/
+node_modules/
+.supabase/
+supabase/.temp/
+*.log
