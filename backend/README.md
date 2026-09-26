@@ -12,7 +12,7 @@ supabase db reset                   # re-apply migrations + seed alice/bob/eve (
 supabase status -o env              # SUPABASE_URL / publishable key for the app and tests
 
 cd tests/backend && npm install
-SUPABASE_PUBLISHABLE_KEY=<publishable key> npm test          # 18 end-to-end checks
+SUPABASE_PUBLISHABLE_KEY=<publishable key> npm test          # 19 end-to-end checks
 SUPABASE_PUBLISHABLE_KEY=<publishable key> node capture-fixtures.mjs   # refresh backend/fixtures (after db reset)
 ```
 
@@ -27,7 +27,7 @@ Configuration names: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (app-safe). `SUP
 ```
  iOS app (publishable key + user JWT)
    │ 1 Auth: signUp(email, password, {username, display_name}) / signIn → access token
-   │ 2 Storage: PUT postcard-photos/<uid>/<draft_id>/photo.jpg   (RLS: own folder, jpeg ≤10 MB, no overwrite)
+   │ 2 Storage: PUT postcard-photos/<uid>/<draft_id>/photo.jpg   (RLS: own folder, jpeg ≤10 MB; trigger: sent photos immutable)
    │ 3 RPC send_postcard(... p_photo_path, p_client_request_id = draft_id)
    │       └─ one transaction: validate → find/create pair → members → insert postcard
    │ 4 Realtime postgres_changes INSERT on postcards (RLS: sender/recipient only) → refetch
@@ -36,14 +36,17 @@ Configuration names: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (app-safe). `SUP
 ```
 
 - **Auth/session:** Supabase Auth issues the JWT. The `on_auth_user_created` trigger creates `profiles` from signup metadata `username` and `display_name`: username lowercased and matched against `^[a-z0-9_]{3,30}$`, display name at most 100 characters. An invalid or taken username fails signup, so the client should validate first. Profiles are readable and editable only by their owner. Other users are found only through `lookup_recipient`, which returns id, username and display_name, never email.
-- **Upload before send:** the client converts the image to JPEG, checks ≤10 MB and ≤20 MP, and uploads once to `<auth uid>/<draft id>/photo.jpg` with `x-upsert: false`. On retry, Storage answers HTTP 400 with body `{"statusCode":"409","code":"KeyAlreadyExists"}`. Treat that as "already uploaded" and reuse the path. There is no UPDATE policy, so no object can ever be overwritten, sent or not.
+- **Upload before send:** the client converts the image to JPEG, checks ≤10 MB and ≤20 MP, and uploads once to `<auth uid>/<draft id>/photo.jpg` with `x-upsert: false`. On retry, Storage answers HTTP 400 with body `{"statusCode":"409","code":"KeyAlreadyExists"}`. Treat that as "already uploaded" and reuse the path.
+- **Sent photos are immutable:** there is no UPDATE policy, so a normal upload with `x-upsert: true` is refused. RLS alone is not enough, though. `createSignedUploadUrl(path, {upsert: true})` is checked only against the INSERT policy when it is issued, the token stays valid for 2 hours, and uploads through it run with Storage's privileged service connection, which bypasses RLS. An owner can therefore still replace an **unsent** draft that way, which is harmless. Once a postcard references the object, the `protect_sent_postcard_photos` trigger on `storage.objects` (migration `20260926000500`) refuses every UPDATE except timestamp changes, and every DELETE, for all roles including the service role. Such a request fails with `PT403`, and Storage keeps serving the original bytes. `send_postcard` also locks the object row (`FOR SHARE`) while it sends. An overwrite that is already in progress finishes first, and the postcard carries its bytes. An overwrite that starts later waits and is then refused. The bytes never change after a send. To remove a sent photo (for example during account deletion), delete its postcard first.
 - **Transaction boundary:** `send_postcard` is a single SECURITY DEFINER function, so the conversation, the members and the postcard are committed together or not at all. The draft is "sent" only when it returns 200 with the message object.
 - **Retry semantics:** `(sender_id, client_request_id)` is unique. The same draft id with the same payload returns the original message, even under concurrent retries (`INSERT … ON CONFLICT DO NOTHING`, then re-read). The same id with different content returns `PT409 idempotency_conflict`. Concurrent first messages between a pair converge on one conversation through `unique(user_low, user_high)`.
-- **Receiving/reconnect:** subscribe to `postgres_changes` INSERT on `public.postcards`. Realtime applies the SELECT policy per subscriber. Treat an event as "refetch conversation `conversation_id`", not as delivery. On every (re)connect, call `list_conversations` and the first page of `list_messages`, then merge by message id.
+- **Receiving/reconnect:** subscribe to `postgres_changes` INSERT on `public.postcards`. Realtime applies the SELECT policy per subscriber. The `supabase_realtime` publication publishes INSERT only (migration `20260926000600`), because Realtime does not apply RLS to DELETE events and would send a deleted postcard's id to every subscriber. Postgres sets this per publication, so it applies to every table in `supabase_realtime`. Treat an event as "refetch conversation `conversation_id`", not as delivery. On every (re)connect, call `list_conversations` and the first page of `list_messages`, then merge by message id.
 - **Photo access:** `createSignedUrl(path, ≤300)`. The select policy allows the uploader, and the sender and recipient of a sent postcard. Supabase Storage does not let the server cap `expiresIn`, so clients must pass ≤300. That 5-minute limit is a client obligation.
-- **Storage cleanup:** unsent uploads older than 24 h are orphans. `public.list_orphan_photos` is service-role only and never lists an object that a postcard references. `backend/scripts/cleanup-orphans.mjs` (dry run by default, `--apply` to delete) removes them through the Storage API. Clients can delete their own unsent uploads, and the delete policy refuses sent photos.
+- **Storage cleanup:** unsent uploads older than 24 h are orphans. `public.list_orphan_photos` is service-role only and never lists an object that a postcard references. `backend/scripts/cleanup-orphans.mjs` (dry run by default, `--apply` to delete) removes them through the Storage API. If a draft is sent between listing and removal, the trigger refuses the delete. The script keeps and reports that draft, and removes the rest one by one. Clients can delete their own unsent uploads, and the delete policy refuses sent photos.
 - **Content validation:** size and MIME are enforced by the bucket (`image/jpeg`, 10 MiB). MIME comes from the upload's Content-Type. **Image byte signatures and pixel dimensions are not validated server-side yet.**
-- **Privacy:** the functions do not log message text. Tokens stay in headers. No email appears in any RPC response.
+- **Sender identity:** `sender_name` and `recipient_name` are free text the sender types, like the signature and greeting on a card. They are not verified. The database enforces `sender_id`, so clients must show who sent a postcard from the peer profile (`peer.username` / `peer.display_name` from `list_conversations`), never from `sender_name` alone.
+- **NUL characters:** Postgres text cannot hold U+0000. A request whose JSON contains `\u0000` in any text argument fails with HTTP 400 `22P05`. Postgres also logs the parse error with the last 50 or so characters of the JSON up to the NUL, which can include message text. Clients must strip U+0000 from every text field before sending.
+- **Privacy:** the functions do not log message text. The NUL parse error above happens before any function runs. Tokens stay in headers. No email appears in any RPC response.
 
 ### SECURITY DEFINER functions
 
@@ -52,6 +55,7 @@ Configuration names: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (app-safe). `SUP
 | `lookup_recipient`, `list_conversations`, `list_messages`, `send_postcard` | Read peer profiles and write tables clients cannot touch directly | `auth.uid()` required (`PT401`); membership and identity checks inside; `search_path = ''`; execute revoked from `public`/`anon`, granted to `authenticated` |
 | `private.handle_new_user` | Auth trigger inserts the profile | Only fires from `auth.users`; no execute grant |
 | `private.photo_is_sent`, `private.can_read_sent_photo` | Storage policies check postcards without depending on caller RLS | Return booleans only; `search_path = ''` |
+| `private.protect_sent_photo` | Trigger on `storage.objects` must see all postcards, whatever role writes (user, service role, Storage's own connection) | Trigger only, no execute grant; only raises or passes the row through; `search_path = ''` |
 | `list_orphan_photos` | Scans storage.objects | Execute granted to `service_role` only |
 
 The RLS policies compare columns with `auth.uid()` and never query another RLS-protected table, so there is no policy recursion.
@@ -91,7 +95,7 @@ The `message` strings are written to be shown to users.
 1. `supabase link --project-ref <ref>`. The database password comes from the owner and is never committed.
 2. `supabase db push` applies `supabase/migrations` in order. Do not run `seed.sql` on hosted projects.
 3. Confirm that bucket `postcard-photos` is private, 10 MiB, `image/jpeg` (the migration upserts this).
-4. Confirm that `public.postcards` is in the `supabase_realtime` publication.
-5. Auth settings: decide on email confirmation. Keep the minimum password length at 8 or more.
+4. Confirm that `public.postcards` is in the `supabase_realtime` publication, that the publication publishes `insert` only, and that the `protect_sent_postcard_photos` trigger exists on `storage.objects`. The trigger needs the `postgres` role to hold TRIGGER on `storage.objects`, as it does locally; this has not been checked on a hosted project.
+5. Auth settings: decide on email confirmation. Keep the minimum password length at 8 or more. The local `supabase/config.toml` also uses 8, which takes effect the next time the local stack starts.
 6. Schedule `cleanup-orphans.mjs --apply` daily from a server with `SUPABASE_SECRET_KEY`.
 7. Give the app only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`.
