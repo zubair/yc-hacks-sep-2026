@@ -2,6 +2,7 @@
 
 Vintage travel postcards for iPhone Duo. Open `Postcard/` for the native app.
 
+- [Idea, renders, and team overview](Postcard/IDEA.md)
 - [App setup and demo](Postcard/README.md)
 - [Team assignments and copy/paste prompts](Postcard/TEAM_PROMPTS.md)
 - [Visual references](design/)
@@ -13,7 +14,7 @@ Vintage travel postcards for iPhone Duo. Open `Postcard/` for the native app.
 |---|---|---|
 | Barrat | `design/postcard-polish` | Visual direction and demo |
 | Z | `feature/native-postcard-editor` | Photo/message editor and native integration |
-| Zubair | `feature/duo-interaction` | Hinge interactions and simulator |
+| Zabir | `feature/duo-interaction` | Hinge interactions and simulator |
 | Pranav | `feature/postcard-delivery` | Backend and recipient web experience |
 
 All four branches start from the same Postcard baseline. The existing FoldGonio project below is retained. No branches have been merged.
