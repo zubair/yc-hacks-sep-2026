@@ -1,0 +1,91 @@
+# Postcard iOS app — generate with `xcodegen generate` from ios/ (see ios/README.md).
+name: Postcard
+options:
+  bundleIdPrefix: com.bairisland
+  createIntermediateGroups: true
+  groupSortPosition: bottom
+  # Duo APIs (hinge, arrangement, vertical bars) ship in the iOS 27.1 SDK. Packages stay at iOS 17;
+  # the app target is 27.1 so Duo code needs no availability gates. Documented in ios/README.md.
+  deploymentTarget:
+    iOS: "27.1"
+configs:
+  Debug: debug
+  Release: release
+settings:
+  base:
+    CODE_SIGN_IDENTITY: "-"
+    SWIFT_VERSION: "6.0"
+packages:
+  PostcardCore:
+    path: ../packages/PostcardCore
+  PostcardServices:
+    path: ../packages/PostcardServices
+  PostcardMotion:
+    path: ../packages/PostcardMotion
+  PostcardUI:
+    path: ../packages/PostcardUI
+targets:
+  Postcard:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Platform
+      - Features
+    dependencies:
+      - package: PostcardCore
+      - package: PostcardServices
+      - package: PostcardMotion
+      - package: PostcardUI
+    configFiles:
+      Debug: Config/Postcard.xcconfig
+      Release: Config/Postcard.xcconfig
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Postcard
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        SUPABASE_URL: $(SUPABASE_URL)
+        SUPABASE_PUBLISHABLE_KEY: $(SUPABASE_PUBLISHABLE_KEY)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bairisland.postcard
+        PRODUCT_NAME: Postcard
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1"
+        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "1.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+  PostcardAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests/App
+    dependencies:
+      - target: Postcard
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bairisland.postcard.tests
+schemes:
+  Postcard:
+    build:
+      targets:
+        Postcard: all
+        PostcardAppTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - PostcardAppTests
