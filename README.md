@@ -17,7 +17,7 @@ DEVELOPER_DIR="$HOME/Downloads/Xcode.app/Contents/Developer" xcodebuild \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
-Open the generated project in Xcode and Run. With no Supabase build settings, the app enters fixture mode and labels it `DEMO · simulated sends`. A generated sample travel photo is preselected. Start as Alex, search for `sam`, select Sam Lee, write a note, Open, Seal, then tap Send. Open Inbox and use **View as Sam** to see the recipient side. A send is simulated only after the Send button is tapped. A failed send retains the same draft and request ID for retry.
+Open the generated project in Xcode and Run. With no local configuration file, the app enters fixture mode and labels it `DEMO · simulated sends`. A generated sample travel photo is preselected. Start as Alex, search for `sam`, select Sam Lee, write a note, Open, Seal, then tap Send. Open Inbox and use **View as Sam** to see the recipient side. A send is simulated only after the Send button is tapped. A failed send retains the same draft and request ID for retry.
 
 The UI test runs this send and recipient-inbox flow:
 
@@ -43,7 +43,7 @@ SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io npx supabase start
 npx supabase status
 ```
 
-Use the local API URL and **anon/publishable** key from the CLI. Supply them as local Xcode build settings named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`; never put a service-role key in the app. For command-line builds, pass those two settings to `xcodebuild`. Do not commit a populated configuration file. Sign up with an email, password, lowercase username, and display name. When email confirmation is enabled, confirm the email before signing in. Use separate test accounts for a real local send and inbox check. A local simulator can reach `http://127.0.0.1:54321` on the host.
+Use the local API URL and **anon/publishable** key from the CLI. Copy [LocalConfig.plist.example](ios/Config/LocalConfig.plist.example) to `ios/Config/LocalConfig.plist` and fill `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`, then regenerate the Xcode project. This populated file is ignored by Git. Never put a service-role key in the app. Sign up with an email, password, lowercase username, and display name. When email confirmation is enabled, confirm the email before signing in. Use separate test accounts for a real local send and inbox check. A local simulator can reach `http://127.0.0.1:54321` on the host.
 
 The [Supabase migrations](supabase/migrations) create auth-linked profiles, private two-person conversations, immutable postcards, sender-scoped idempotency, constrained RPCs, photo policies, and a Realtime publication. `send_postcard` stores the message and pair atomically. A client upload uses `<sender UUID>/<draft UUID>/photo.jpg`; retries reuse that path without overwriting the stored object. Signed photo URLs last five minutes. The app refetches on Realtime events, on foregrounding, and periodically while subscribed; it deduplicates displayed messages by UUID. See [backend/README.md](backend/README.md) for setup, wire fixtures, error mapping, and local tests.
 
@@ -60,7 +60,7 @@ To run the backend end-to-end suite against the local stack, install dependencie
 | Native app | `ios` | Draft persistence, photo conversion, account and navigation state |
 | Backend | `supabase` | Migration, RLS, Storage, RPCs, Realtime publication |
 
-The app has no print, payment, public-link, push delivery, or read-receipt feature. `Sent` means persisted by the RPC, not delivered or read. [PostcardPostureController.swift](ios/Platform/PostcardPostureController.swift) maps both Apple hinge events and manual Open/Seal controls into the same state machine.
+The app has no print, payment, public-link, push delivery, or read-receipt feature. `Sent` means persisted by the RPC, not delivered or read. [DuoStateController.swift](ios/Platform/DuoStateController.swift) maps both Apple hinge events and manual Open/Seal controls into the same state machine. [PostcardCoordinator.swift](ios/Features/PostcardCoordinator.swift) owns drafts, cancellation, inbox refresh, and session state.
 
 ## Current verification
 
