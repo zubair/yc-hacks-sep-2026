@@ -1,6 +1,6 @@
 # Final integration — assemble the complete Postcard app
 
-Your branch is `integration/final`, the repository default. Read AGENTS.md and all shared contracts, then inspect the four remote personal branches and their handoffs. Your job is to combine implemented work into a working app, resolve compatibility issues, verify the end-to-end experience, and push the integrated result. Never report the planning baseline as a completed product.
+Your branch is `integration/final`, the intended repository default (the owner must select it in Settings if that change is still pending). Read AGENTS.md and all shared contracts, then inspect the four remote personal branches and their handoffs. Your job is to combine implemented work into a working app, resolve compatibility issues, verify the end-to-end experience, and push the integrated result. Never report the planning baseline as a completed product.
 
 ## Collect and integrate
 

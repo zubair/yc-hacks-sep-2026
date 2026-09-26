@@ -16,7 +16,7 @@ Replace MY_BRANCH with your branch below. AGENTS.md routes the agent to its full
 | Barrat | `team/barrat` | [Frontend, visual design, and screen animation choreography](docs/agents/barrat.md) |
 | Final integration agent | `integration/final` | [Combine and verify the four workstreams](docs/agents/integration.md) |
 
-Start with [the product brief](docs/PRODUCT.md), [shared contracts](docs/CONTRACTS.md), and [file ownership](docs/OWNERSHIP.md). The integration branch is the default branch. Each personal branch starts from the same clean baseline.
+Start with [the product brief](docs/PRODUCT.md), [shared contracts](docs/CONTRACTS.md), and [file ownership](docs/OWNERSHIP.md). The intended default branch is `integration/final`. The current GitHub account has push access but lacks admin permission, so the repo owner must select it in repository Settings before the legacy default branch can be removed. The legacy default has been reset to this clean setup; work on the five assigned branches above. Each personal branch starts from the same clean baseline.
 
 ## Working together
 
