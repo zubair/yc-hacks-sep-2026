@@ -35,15 +35,15 @@ xcodebuild -project Postcard.xcodeproj -scheme Postcard \
 The app uses the [official Supabase Swift SDK](https://github.com/supabase/supabase-swift) pinned to 2.55.2. Docker and the Supabase CLI must be available. From the repo root:
 
 ```sh
-npx supabase start
+SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io npx supabase start
 npx supabase status
 ```
 
 Use the local API URL and **anon/publishable** key from the CLI. Supply them as local Xcode build settings named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`; never put a service-role key in the app. For command-line builds, pass those two settings to `xcodebuild`. Do not commit a populated configuration file. Sign up with an email, password, lowercase username, and display name. When email confirmation is enabled, confirm the email before signing in. Use separate test accounts for a real local send and inbox check. A local simulator can reach `http://127.0.0.1:54321` on the host.
 
-The database migration is [202609260001_postcard.sql](supabase/migrations/202609260001_postcard.sql). It creates auth-linked profiles, private two-person conversations, immutable postcards, sender-scoped idempotency, constrained RPCs, photo policies, and a Realtime publication. `send_postcard` stores the message and pair atomically. A client upload uses `<sender UUID>/<draft UUID>/photo.jpg`; retries reuse that path without overwriting the stored object. Signed photo URLs last five minutes. The app refetches on Realtime events, on foregrounding, and periodically while subscribed; it deduplicates displayed messages by UUID.
+The [Supabase migrations](supabase/migrations) create auth-linked profiles, private two-person conversations, immutable postcards, sender-scoped idempotency, constrained RPCs, photo policies, and a Realtime publication. `send_postcard` stores the message and pair atomically. A client upload uses `<sender UUID>/<draft UUID>/photo.jpg`; retries reuse that path without overwriting the stored object. Signed photo URLs last five minutes. The app refetches on Realtime events, on foregrounding, and periodically while subscribed; it deduplicates displayed messages by UUID. See [backend/README.md](backend/README.md) for setup, wire fixtures, error mapping, and local tests.
 
-For local SQL verification without Docker, [tests/backend/check.sh](tests/backend/check.sh) runs against a disposable PostgreSQL 17 database after [bootstrap.sql](tests/backend/bootstrap.sql) supplies test versions of the Supabase Auth and Storage schemas. It checks policy and RPC behavior but is not a substitute for the full Storage/Auth/Realtime service stack.
+To run the backend end-to-end suite against the local stack, install dependencies in `tests/backend`, then run `SUPABASE_PUBLISHABLE_KEY=<key from supabase status> npm test` there. The suite covers Auth, Storage, RPCs, RLS, retries, and Realtime.
 
 ## Architecture
 
@@ -62,7 +62,6 @@ The app has no print, payment, public-link, push delivery, or read-receipt featu
 
 - `swift test` passed for Core and Services on Swift 6.3.
 - Xcode simulator build passed on iPhone 17 Pro, iOS 26.5.
-- PostgreSQL 17 migration and role/RPC checks passed using the disposable local harness.
-- Full Supabase service validation requires registry access for Docker images. On this machine, `public.ecr.aws` DNS lookups from Docker timed out while `supabase start` pulled images.
+- Zafar's branch reports 18 backend end-to-end checks passing against local Supabase; this merged branch still needs a fresh local run.
 
 See [handoffs/pranav.md](handoffs/pranav.md) for the exact implementation status and remaining integration checks.

@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/rest/v1/rpc/send_postcard",
+    "headers": {
+      "apikey": "<SUPABASE_PUBLISHABLE_KEY>",
+      "Authorization": "Bearer <user access token>",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "p_recipient_id": "00000000-0000-4000-a000-000000000b0b",
+      "p_sender_name": "Alice",
+      "p_recipient_name": "Grandma",
+      "p_destination": "Cinque Terre",
+      "p_message": "",
+      "p_photo_path": "00000000-0000-4000-a000-00000000a11c/6acee6b3-adc1-42a9-a029-e834bc178932/photo.jpg",
+      "p_client_request_id": "c809e4f6-6dde-4d82-9ade-112ed0c18046"
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "code": "PT422",
+      "details": null,
+      "hint": "validation",
+      "message": "message must be 1-5000 characters"
+    }
+  }
+}
