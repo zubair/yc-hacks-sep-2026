@@ -1,0 +1,7 @@
+# Generated from project.yml by xcodegen (Bitrig/xcodebuild consume the generated project)
+*.xcodeproj
+App/Info.plist
+# Local credentials
+Config/Local.xcconfig
+DerivedData/
+build/

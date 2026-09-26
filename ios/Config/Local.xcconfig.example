@@ -1,0 +1,4 @@
+// Copy to Config/Local.xcconfig (gitignored). Publishable key only; never a service-role key.
+// xcconfig treats "//" as a comment, so split the scheme with $():
+SUPABASE_URL = http:/$()/127.0.0.1:54321
+SUPABASE_PUBLISHABLE_KEY = sb_publishable_replace_me
