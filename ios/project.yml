@@ -1,0 +1,70 @@
+name: Postcard
+options:
+  bundleIdPrefix: com.zubair.postcard
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    TARGETED_DEVICE_FAMILY: "1"
+packages:
+  PostcardCore:
+    path: ../packages/PostcardCore
+  PostcardServices:
+    path: ../packages/PostcardServices
+  PostcardMotion:
+    path: ../packages/PostcardMotion
+  PostcardUI:
+    path: ../packages/PostcardUI
+targets:
+  Postcard:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: Platform
+      - path: Features
+      - path: Config
+        excludes:
+          - Info.plist
+          - LocalConfig.plist.example
+          - .gitignore
+    dependencies:
+      - package: PostcardCore
+      - package: PostcardServices
+      - package: PostcardMotion
+      - package: PostcardUI
+    info:
+      path: Config/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zubair.postcard.app
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_STYLE: Automatic
+  PostcardAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/App
+    dependencies:
+      - target: Postcard
+      - package: PostcardCore
+      - package: PostcardServices
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Postcard:
+    build:
+      targets:
+        Postcard: all
+        PostcardAppTests: [test]
+    run:
+      config: Debug
+    test:
+      targets:
+        - PostcardAppTests
