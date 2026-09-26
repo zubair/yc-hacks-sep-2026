@@ -288,3 +288,171 @@ private struct OpeningPostcardShareSheet: UIViewControllerRepresentable {
     }
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
+
+/// Hands a published HTTPS link to Messages or the share sheet. The upload already
+/// succeeded ("Ready to share"); nothing here claims the recipient received it.
+struct LinkHandoffSheet: View {
+    let url: URL
+    let recipient: String
+    let shareText: String
+    /// Non-nil while the publisher is a fixture, so a test link is never mistaken for a real one.
+    let fixtureLabel: String?
+    let onImageFallback: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var destination: Destination?
+    @State private var status: String?
+
+    private let paper = Color(red: 0.97, green: 0.95, blue: 0.89)
+    private let ink = Color(red: 0.17, green: 0.20, blue: 0.18)
+    private let vermilion = Color(red: 0.77, green: 0.24, blue: 0.16)
+    private var messagesAvailable: Bool { MFMessageComposeViewController.canSendText() }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 22) {
+                HStack {
+                    Text("POSTCARD / READY TO SHARE")
+                        .font(.system(.caption, design: .monospaced).weight(.semibold))
+                        .tracking(2)
+                    Spacer()
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark").font(.body.weight(.medium))
+                            .frame(width: 44, height: 44)
+                            .background(ink.opacity(0.06), in: Circle())
+                    }
+                    .accessibilityLabel("Close")
+                }
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.seal").font(.largeTitle).foregroundStyle(vermilion)
+                        .accessibilityHidden(true)
+                    Text("Ready to share with \(recipient).")
+                        .font(.system(.title, design: .serif))
+                        .multilineTextAlignment(.center)
+                    Text("Your postcard is online. Send \(recipient) the link. They can open it without an account.")
+                        .font(.subheadline).foregroundStyle(ink.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                }
+                VStack(spacing: 6) {
+                    Text(url.absoluteString)
+                        .font(.system(.footnote, design: .monospaced))
+                        .lineLimit(2).truncationMode(.middle).textSelection(.enabled)
+                        .padding(12).frame(maxWidth: .infinity)
+                        .background(ink.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
+                        .accessibilityLabel("Postcard link")
+                        .accessibilityValue(url.absoluteString)
+                    if let fixtureLabel {
+                        Label(fixtureLabel, systemImage: "wrench.and.screwdriver")
+                            .font(.footnote.weight(.semibold)).foregroundStyle(vermilion)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                VStack(spacing: 12) {
+                    if messagesAvailable {
+                        Button { destination = .messages } label: {
+                            label("Send link with Messages", symbol: "message.fill")
+                                .foregroundStyle(paper)
+                                .background(vermilion, in: RoundedRectangle(cornerRadius: 14))
+                        }
+                    }
+                    Button { destination = .share } label: {
+                        label("Share link…", symbol: "square.and.arrow.up")
+                            .foregroundStyle(messagesAvailable ? ink : paper)
+                            .background(messagesAvailable ? ink.opacity(0.07) : vermilion, in: RoundedRectangle(cornerRadius: 14))
+                    }
+                    Button {
+                        UIPasteboard.general.url = url
+                        status = "Link copied."
+                    } label: {
+                        label("Copy link", symbol: "doc.on.doc")
+                            .foregroundStyle(ink)
+                            .background(ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+                    }
+                    Button("Send as an image instead", action: onImageFallback)
+                        .font(.subheadline.weight(.medium)).underline()
+                        .frame(minHeight: 44)
+                    if let status {
+                        Text(status).font(.subheadline).foregroundStyle(ink.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                            .accessibilityAddTraits(.updatesFrequently)
+                    }
+                }
+            }
+            .padding(24)
+        }
+        .background(paper.ignoresSafeArea())
+        .foregroundStyle(ink)
+        .presentationDragIndicator(.visible)
+        .sheet(item: $destination) { selected in
+            switch selected {
+            case .messages:
+                LinkMessageComposer(messageBody: shareText) { result in
+                    switch result {
+                    case .sent: status = "Messages sent your link. Whether it arrives is up to Messages."
+                    case .cancelled: status = "Not sent. Your link is still ready to share."
+                    case .failed: status = "Messages couldn’t send it. Try Share link or Copy link."
+                    @unknown default: status = "Your link is still ready to share."
+                    }
+                    destination = nil
+                }
+            case .share:
+                LinkActivitySheet(text: shareText) { completed, error in
+                    if error != nil { status = "Sharing couldn’t finish. Your link is still ready." }
+                    else if completed { status = "Shared. The link is on its way through the app you chose." }
+                    else { status = "Not shared. Your link is still ready." }
+                    destination = nil
+                }
+            }
+        }
+    }
+
+    private func label(_ title: String, symbol: String) -> some View {
+        HStack(spacing: 10) { Image(systemName: symbol); Text(title) }
+            .font(.headline)
+            .frame(maxWidth: .infinity).frame(minHeight: 54)
+            .contentShape(Rectangle())
+    }
+
+    private enum Destination: String, Identifiable {
+        case messages, share
+        var id: String { rawValue }
+    }
+}
+
+private struct LinkActivitySheet: UIViewControllerRepresentable {
+    let text: String
+    let completion: (Bool, Error?) -> Void
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, completed, _, error in
+            DispatchQueue.main.async { completion(completed, error) }
+        }
+        return controller
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+private struct LinkMessageComposer: UIViewControllerRepresentable {
+    let messageBody: String
+    let completion: (MessageComposeResult) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
+
+    func makeUIViewController(context: Context) -> MFMessageComposeViewController {
+        let controller = MFMessageComposeViewController()
+        controller.messageComposeDelegate = context.coordinator
+        controller.body = messageBody
+        return controller
+    }
+    func updateUIViewController(_ controller: MFMessageComposeViewController, context: Context) {}
+
+    final class Coordinator: NSObject, MFMessageComposeViewControllerDelegate {
+        let completion: (MessageComposeResult) -> Void
+        init(completion: @escaping (MessageComposeResult) -> Void) { self.completion = completion }
+        func messageComposeViewController(_ controller: MFMessageComposeViewController,
+                                          didFinishWith result: MessageComposeResult) {
+            completion(result)
+        }
+    }
+}

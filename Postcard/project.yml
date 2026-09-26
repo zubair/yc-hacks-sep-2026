@@ -24,6 +24,8 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         ITSAppUsesNonExemptEncryption: false
+        # Public HTTPS base URL of Pranav's service. Empty = labeled fixture publisher. Never a secret.
+        PostcardAPIBaseURL: ""
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.barrat.postcard
