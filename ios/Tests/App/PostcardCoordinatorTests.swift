@@ -63,7 +63,7 @@ struct PostcardCoordinatorTests {
             username: "test_user",
             displayName: "Test"
         )
-        #expect(coordinator.authError?.contains("confirm") == true)
+        #expect(coordinator.authNotice?.contains("confirm") == true)
 
         await coordinator.signIn(email: "test@example.invalid", password: "password")
         #expect(!coordinator.requiresAuthentication)

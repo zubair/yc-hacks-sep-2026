@@ -1,26 +1,29 @@
 # Postcard iOS app
 
-This is the `team/zubair` app layer. It depends on four sibling Swift packages owned by other workstreams: `PostcardCore`, `PostcardServices`, `PostcardMotion`, and `PostcardUI`. The packages are referenced by `project.yml`; they are not copied into this branch.
+This is the integrated iOS app using the shared Core, Services, Motion, and UI packages. `project.yml` generates the Xcode project with XcodeGen. The minimum deployment target is iOS 17.
 
-## Build and demo
+## Demo
 
-With those packages present, generate the Xcode project from `ios/project.yml` using XcodeGen, then build the Postcard scheme in Bitrig. The minimum deployment target is iOS 17. The installed Xcode 27.1 SDK contains `onHingeChange` and the iPhone Duo simulator. On iOS 27.1, Duo posture events open and seal a draft; on older iOS versions and ordinary iPhones, the Open and Seal buttons use the same controller. Only a tap on Send calls `PostcardService.send`.
+With no `Config/LocalConfig.plist`, the app runs with `FixturePostcardService`. It starts as Alex, includes a sample photo, and can look up Sam by the exact username `sam`. Write a note, open the postcard, close and seal it, then explicitly tap **Preview sending**. In the Inbox, tap **View as Sam** to see the received postcard and its photo. The app labels this as a simulated send; no network message is sent.
 
-With no local configuration file, `AppRuntime` selects `FixturePostcardService` and displays **Demo data · sends are simulated** above the app. The fixture service must provide a local profile, recipient, and inbox flow for the complete credential-free demo. No real message is sent in fixture mode.
+## Live service
 
-## Real service configuration
+Copy `Config/LocalConfig.plist.example` to `Config/LocalConfig.plist` and fill in `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. Run `xcodegen generate` again so the file is included as a resource. The file is ignored by Git. Use a publishable or anon key, never a service-role key. An incomplete configuration selects demo mode.
 
-Copy `Config/LocalConfig.plist.example` to `Config/LocalConfig.plist` and replace both placeholders with `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. Generate the project again after adding the file so XcodeGen includes it as a bundle resource. The local file is ignored by Git. The publishable key belongs in the app; a service-role key does not. If the file is absent or still contains a placeholder, the app starts in demo mode.
+`PostcardCoordinator` owns session state, exact username lookup, explicit sending and retry, inbox refresh, conversation state, and signed photo downloads. It requests fresh photo URLs on conversation refresh, foregrounding, and every four minutes while a conversation is open. Failed photo downloads have a retry action. `LocalDraftStore` saves the draft atomically, including the photo, in Application Support. `PostcardPhotoProcessor` converts selected photos to JPEG and enforces a 20-megapixel and 10 MB limit.
 
-## App behavior
+`DuoStateController` maps Apple's iOS 27.1 hinge events and manual controls to the same front → writing → sealed → sending → sent flow. Folding never sends. On ordinary iPhones and older iOS versions, the Open and Seal buttons provide the same experience.
 
-- `PostcardCoordinator` owns the authenticated session, recipient lookup, draft, explicit send and retry, inbox, conversation, signed photo URLs, and realtime subscription lifecycle. A foreground reconnect refetches durable conversations and messages. An open conversation refreshes signed photo URLs every four minutes.
-- `DuoStateController` owns front → writing → sealed → sending → sent transitions and haptics. It ignores repeated posture events and suppresses fold transitions while authentication or a modal is active. Folding never sends.
-- `LocalDraftStore` saves the Codable draft atomically in Application Support. A revision prevents an older delayed save from replacing a newer one. Backgrounding flushes the current draft.
-- `PostcardPhotoProcessor` checks decoded dimensions before conversion, converts PhotosPicker data to JPEG, and rejects output above 10 MB or 20 megapixels.
+## Build and test
 
-The app shell binds the four views specified in `docs/CONTRACTS.md`. The dependency owners must confirm their concrete service constructors and public view initializer labels against the call sites in `AppRuntime.swift` and `PostcardRootView.swift` during integration.
+Use Xcode 27.1 and XcodeGen 2.46 or later:
 
-## Current verification boundary
+```sh
+cd ios
+xcodegen generate
+xcodebuild -project Postcard.xcodeproj -scheme Postcard \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
+  CODE_SIGNING_ALLOWED=NO test
+```
 
-The app and test Swift files typecheck against the iOS 27.1 SDK using temporary contract-shaped package modules. Nine isolated state, persistence, authentication, retry, cancellation, and reconnect tests pass on macOS with temporary fixture modules. Two iOS photo tests typecheck and await the simulator run. The actual sibling packages and XcodeGen binary are not present in this checkout, so a full app build, simulator screenshot, and live Supabase test remain for integration.
+See the [root README](../README.md) for backend setup and verification status.

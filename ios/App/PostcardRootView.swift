@@ -54,6 +54,7 @@ struct PostcardRootView: View {
             PostcardAuthView(
                 isLoading: coordinator.isAuthenticating,
                 error: coordinator.authError,
+                notice: coordinator.authNotice,
                 onSignIn: { email, password in
                     Task { await coordinator.signIn(email: email, password: password) }
                 },
@@ -100,6 +101,7 @@ struct PostcardRootView: View {
                     conversations: coordinator.conversations,
                     isLoading: coordinator.isLoadingInbox,
                     error: coordinator.inboxError,
+                    isDemo: coordinator.mode == .demo,
                     onSelect: { conversation in
                         Task { await coordinator.selectConversation(conversation.id) }
                         conversationPath.append(conversation.id)
@@ -142,7 +144,7 @@ struct PostcardRootView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(PostcardTheme.accent.ignoresSafeArea(edges: .top))
+        .background(PostcardStyle.vermilion.ignoresSafeArea(edges: .top))
         .foregroundStyle(.white)
     }
 
@@ -150,10 +152,12 @@ struct PostcardRootView: View {
         @Bindable var coordinator = coordinator
         return PostcardComposerView(
             draft: $coordinator.draft,
-            presentationState: coordinator.presentation.state,
+            state: coordinator.presentation.state,
             error: coordinator.composerError,
             recipientLookupResult: coordinator.recipientLookupResult,
             isLookingUpRecipient: coordinator.isLookingUpRecipient,
+            recipientLookupMessage: coordinator.recipientLookupMessage,
+            isDemo: coordinator.mode == .demo,
             onLookupRecipient: { coordinator.lookupRecipient($0) },
             onSelectRecipient: { coordinator.selectRecipient($0) },
             onChoosePhoto: { isPhotoPickerPresented = true },
@@ -168,16 +172,20 @@ struct PostcardRootView: View {
         Group {
             if let conversation = coordinator.conversations.first(where: { $0.id == coordinator.selectedConversationID }) {
                 PostcardConversationView(
-                    peer: conversation.peer,
                     messages: coordinator.messages,
                     photoURLs: coordinator.resolvedPhotoURLs,
+                    photoData: coordinator.resolvedPhotoData,
+                    photoErrors: coordinator.photoErrors,
                     isLoading: coordinator.isLoadingConversation,
                     error: coordinator.conversationError,
+                    isDemo: coordinator.mode == .demo,
+                    title: "With \(conversation.peer.displayName)",
                     onReply: {
                         coordinator.reply(to: conversation.peer)
                         selectedTab = .compose
                     },
-                    onRefresh: { Task { await coordinator.refreshConversation() } }
+                    onRefresh: { Task { await coordinator.refreshConversation() } },
+                    onRetryPhoto: { id in Task { await coordinator.retryPhoto(id) } }
                 )
             } else {
                 ProgressView("Opening conversation")

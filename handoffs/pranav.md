@@ -2,29 +2,27 @@
 
 ## Status
 
-Implemented the shared Swift packages, native iOS app, SwiftUI screens, and Supabase migration in this branch after the user requested the whole app. No hosted service was changed. The fixture app builds and runs without credentials. A device-specific Duo hinge feed remains pending a public API.
+This branch integrates Zafar's Supabase migrations and service contract, Zubair's native iOS app and Duo state controller, Barrat's SwiftUI screens and visual system, and the shared Core and Motion packages. The app runs without credentials in fixture mode and supports live Supabase configuration. No hosted Supabase project or App Store release was changed.
 
-## Public API
+## App flow
 
-`PostcardCore` exports `PostcardProfile`, `PostcardDraft`, `PostcardMessage`, `PostcardConversation`, `PostcardPresentationState`, and `PostcardServiceError`. `PostcardServices` exports the exact `PostcardService` protocol from `docs/CONTRACTS.md`, `FixturePostcardService(signedIn:)`, and `SupabasePostcardService(url:publishableKey:)`. `PostcardMotion` exports `PostcardFlipContainer(isOpen:duration:front:back:)` and `PostcardSealEffect(isSealed:)`. `PostcardUI` exports the four named screens in the contract. Their public initializer labels are in their source files. The UI owns local form state only; `PostcardAppModel` owns service calls and draft persistence.
+In demo mode, Alex starts with a sample photo, looks up `sam`, writes and seals a postcard, and explicitly previews sending. The fixture stores the message only after that tap. **View as Sam** switches the demo profile so the recipient can open the conversation, load the photo, and read the note. The app labels simulated sends. In live mode, the app uses Supabase Auth, exact-username lookup, private photo Storage, transactional `send_postcard` RPC, signed photo URLs, and Realtime invalidation.
 
-## Configuration and dependencies
+`PostcardCoordinator` owns session and conversation state, draft persistence, explicit send/retry/cancel behavior, photo download and retry, and foreground refresh. `DuoStateController` maps manual and native iOS 27.1 hinge changes to the same front → writing → sealed → sending → sent flow; folding does not send. `LocalDraftStore` saves drafts atomically. Selected photos are converted to JPEG with 20-megapixel and 10 MB limits. The UI screens use Barrat's `PostcardStyle` and component package.
 
-Supabase Swift SDK 2.55.2 is pinned in `packages/PostcardServices/Package.swift`. XcodeGen 2.46.0 generates `ios/Postcard.xcodeproj` from `ios/project.yml`. The app reads `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` from build settings embedded in Info.plist. If absent, it uses fixture mode. The app must only receive a publishable/anon key. See the root README for commands.
+## Configuration
 
-## Tests and results
+XcodeGen 2.46 generates `ios/Postcard.xcodeproj`; Xcode 27.1 supplies the Duo SDK and simulator. `packages/PostcardServices/Package.swift` pins Supabase Swift 2.55.2. Copy `ios/Config/LocalConfig.plist.example` to ignored `LocalConfig.plist` and set `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` for live mode. Use a publishable or anon key, never a service-role key. Missing or placeholder values keep the app in demo mode.
 
-- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test` in `packages/PostcardCore`: passed, 1 test.
-- Same command in `packages/PostcardServices`: passed, 2 tests (retry idempotency, auth/offline state).
-- `xcodebuild ... build` for iPhone 17 Pro iOS 26.5: passed.
-- `tests/backend/check.sh` on PostgreSQL 17 with mock Auth/Storage schemas: passed (profile trigger, exact lookup, duplicate send, conflict denial, RLS visibility, photo policy, direct-write denial).
-- `npx supabase start`: blocked by Docker DNS timeout resolving `public.ecr.aws`; no live Auth, Storage API, or Realtime check was claimed.
-- Simulator UI flow test is being verified; result is recorded before the final commit.
+## Verification
 
-## Limits and integration notes
+- Core: 1 Swift package test passed. Services: 5 Swift package tests passed against the shared models and Zafar's recorded RPC wire fixtures.
+- UI: 5 iOS package tests passed on the iPhone Duo simulator.
+- App: 11 integration and unit tests plus the compose → send → recipient inbox UI test passed on iPhone 17 Pro iOS 26.5.
+- The integrated app built against the iOS 27.1 SDK for iPhone Duo. It was launched and captured on iPhone 17 Pro, iPad mini, and iPhone Duo simulators; captures are in `design/screenshots`.
+- Zafar's handoff reports 18 local Supabase end-to-end checks. A fresh run on this machine could not start the local stack because Docker's internal DNS could not resolve Docker Hub. The live service was therefore not validated against a running Supabase instance here.
+- The native Duo hinge API is wired and the state machine has tests. A physical fold event in Bitrig's 3D simulator was not validated with this integrated app.
 
-- `send_postcard` uses PostgreSQL `22023` for validation, `28000` for unauthenticated, `P0002` for not-found, and privilege errors for forbidden. The Swift adapter maps these to user-facing service errors.
-- Timestamp-only `p_before` pagination can skip rows sharing the exact same timestamp at a page boundary; the RPC uses UUID as a stable tie order within a page. A cursor containing timestamp and UUID is the next contract improvement for large conversations.
-- The Storage bucket enforces declared MIME and size, while content-byte JPEG signature validation is pending. The app decodes and converts selected photos to JPEG and caps pixels and bytes. Storage does not delete sent photos. An operational cleanup job for old unsent uploads is pending.
-- The local SQL harness does not exercise Supabase API gateway grants, Auth session behavior, Storage signed URL authorization, or actual Realtime filtering. Run those with three local Supabase test accounts once Docker registry access works.
-- Duo simulator was available, but the installed SDK headers expose no verified public hinge API. Manual Open/Seal controls are the supported path.
+## Follow-up for a live release
+
+Configure a Supabase project, apply the migrations, run the backend end-to-end suite against it, and test a real two-account send and photo receipt. Confirm a physical Duo fold transition in Bitrig with this project. Signed URLs expire after five minutes; the app requests fresh URLs on refresh and while a conversation is open. The current conversation request is capped at 100 messages and has no pagination UI.

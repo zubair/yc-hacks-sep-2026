@@ -23,9 +23,12 @@ final class PostcardCoordinator {
     private(set) var presentation: DuoStateController
     private(set) var profile: PostcardProfile?
     private(set) var recipientLookupResult: PostcardProfile?
+    private(set) var recipientLookupMessage: String?
     private(set) var conversations: [PostcardConversation] = []
     private(set) var messages: [PostcardMessage] = []
     private(set) var resolvedPhotoURLs: [UUID: URL] = [:]
+    private(set) var resolvedPhotoData: [UUID: Data] = [:]
+    private(set) var photoErrors: [UUID: String] = [:]
     private(set) var selectedConversationID: UUID?
     private(set) var isStarting = true
     private(set) var isLookingUpRecipient = false
@@ -33,6 +36,7 @@ final class PostcardCoordinator {
     private(set) var isLoadingConversation = false
     private(set) var isAuthenticating = false
     private(set) var authError: String?
+    private(set) var authNotice: String?
     private(set) var composerError: String?
     private(set) var inboxError: String?
     private(set) var conversationError: String?
@@ -93,6 +97,7 @@ final class PostcardCoordinator {
                 draft.senderName = profile.displayName
             }
             authError = nil
+            authNotice = nil
             updateInteractionGuard()
             if profile != nil || mode == .demo {
                 await refreshInbox()
@@ -112,6 +117,7 @@ final class PostcardCoordinator {
         guard !isAuthenticating else { return }
         isAuthenticating = true
         authError = nil
+        authNotice = nil
         defer { isAuthenticating = false }
         do {
             try await service.signIn(email: email, password: password)
@@ -125,12 +131,13 @@ final class PostcardCoordinator {
         guard !isAuthenticating else { return }
         isAuthenticating = true
         authError = nil
+        authNotice = nil
         defer { isAuthenticating = false }
         do {
             try await service.signUp(email: email, password: password, username: username, displayName: displayName)
             await refreshSession()
             if profile == nil {
-                authError = "Check your email to confirm your account, then sign in."
+                authNotice = "Check your email to confirm your account, then sign in."
             }
         } catch {
             authError = message(for: error)
@@ -146,6 +153,8 @@ final class PostcardCoordinator {
             messages = []
             selectedConversationID = nil
             resolvedPhotoURLs = [:]
+            resolvedPhotoData = [:]
+            photoErrors = [:]
             updateInteractionGuard()
         } catch {
             authError = message(for: error)
@@ -159,6 +168,8 @@ final class PostcardCoordinator {
         selectedConversationID = nil
         messages = []
         resolvedPhotoURLs = [:]
+        resolvedPhotoData = [:]
+        photoErrors = [:]
         presentation.resetForAccountSwitch()
         await refreshSession()
         draft = freshDraft()
@@ -179,21 +190,23 @@ final class PostcardCoordinator {
             draft.recipientName = ""
         }
         recipientLookupResult = nil
+        recipientLookupMessage = nil
         composerError = nil
         guard !normalized.isEmpty else {
             isLookingUpRecipient = false
             return
         }
         isLookingUpRecipient = true
+        recipientLookupMessage = "Finding @\(normalized)…"
         lookupTask = Task {
             do {
                 let result = try await service.lookupRecipient(username: normalized)
                 guard !Task.isCancelled, revision == lookupRevision else { return }
                 recipientLookupResult = result
-                if result == nil { composerError = "No recipient has that exact username." }
+                recipientLookupMessage = result == nil ? "No recipient has that exact username." : nil
             } catch {
                 guard !Task.isCancelled, revision == lookupRevision else { return }
-                composerError = message(for: error)
+                recipientLookupMessage = message(for: error)
             }
             if revision == lookupRevision { isLookingUpRecipient = false }
         }
@@ -203,6 +216,7 @@ final class PostcardCoordinator {
         draft.recipientId = recipient.id
         draft.recipientName = recipient.displayName
         recipientLookupResult = recipient
+        recipientLookupMessage = nil
         composerError = nil
     }
 
@@ -271,15 +285,25 @@ final class PostcardCoordinator {
 
     func selectConversation(_ id: UUID) async {
         selectedConversationID = id
+        messages = []
+        resolvedPhotoURLs = [:]
+        resolvedPhotoData = [:]
+        photoErrors = [:]
         await refreshConversation()
     }
 
     func refreshConversation() async {
         guard let id = selectedConversationID, !isLoadingConversation else { return }
         isLoadingConversation = true
-        defer { isLoadingConversation = false }
+        defer {
+            isLoadingConversation = false
+            if selectedConversationID != id {
+                Task { await refreshConversation() }
+            }
+        }
         do {
             let fetched = try await service.messages(conversationId: id, before: nil, limit: 100)
+            guard selectedConversationID == id else { return }
             var seen = Set<UUID>()
             messages = fetched.filter { seen.insert($0.id).inserted }
             conversationError = nil
@@ -374,13 +398,55 @@ final class PostcardCoordinator {
     }
 
     private func resolvePhotos(for messages: [PostcardMessage]) async {
+        let conversationID = selectedConversationID
         var urls: [UUID: URL] = [:]
+        var data: [UUID: Data] = [:]
+        var errors: [UUID: String] = [:]
         for message in messages {
-            if let url = try? await service.photoURL(path: message.photoPath) {
+            guard !Task.isCancelled, selectedConversationID == conversationID else { return }
+            do {
+                let url = try await service.photoURL(path: message.photoPath)
                 urls[message.id] = url
+                data[message.id] = try await loadPhoto(from: url)
+            } catch {
+                errors[message.id] = "The photograph could not be loaded. Tap to try again."
             }
         }
+        guard selectedConversationID == conversationID else { return }
         resolvedPhotoURLs = urls
+        resolvedPhotoData = data
+        photoErrors = errors
+    }
+
+    func retryPhoto(_ id: UUID) async {
+        guard let message = messages.first(where: { $0.id == id }) else { return }
+        do {
+            let url = try await service.photoURL(path: message.photoPath)
+            let data = try await loadPhoto(from: url)
+            guard messages.contains(where: { $0.id == id }) else { return }
+            resolvedPhotoURLs[id] = url
+            resolvedPhotoData[id] = data
+            photoErrors[id] = nil
+        } catch {
+            photoErrors[id] = "The photograph could not be loaded. Tap to try again."
+        }
+    }
+
+    private func loadPhoto(from url: URL) async throws -> Data {
+        let bytes: Data
+        if url.isFileURL {
+            bytes = try Data(contentsOf: url)
+        } else {
+            let (received, response) = try await URLSession.shared.data(from: url)
+            guard let response = response as? HTTPURLResponse, (200...299).contains(response.statusCode) else {
+                throw PostcardServiceError.server("Photograph download failed.")
+            }
+            bytes = received
+        }
+        guard !bytes.isEmpty, bytes.count <= 10_000_000, UIImage(data: bytes) != nil else {
+            throw PostcardServiceError.validation("The photograph is invalid.")
+        }
+        return bytes
     }
 
     private func startRealtime() {

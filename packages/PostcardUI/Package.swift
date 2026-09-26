@@ -6,5 +6,8 @@ let package = Package(
     platforms: [.iOS(.v17)],
     products: [.library(name: "PostcardUI", targets: ["PostcardUI"])],
     dependencies: [.package(path: "../PostcardCore"), .package(path: "../PostcardMotion")],
-    targets: [.target(name: "PostcardUI", dependencies: ["PostcardCore", "PostcardMotion"])]
+    targets: [
+        .target(name: "PostcardUI", dependencies: ["PostcardCore", "PostcardMotion"]),
+        .testTarget(name: "PostcardUITests", dependencies: ["PostcardUI"])
+    ]
 )

@@ -27,7 +27,6 @@ public struct PostcardFlipContainer<Front: View, Back: View>: View {
                 .allowsHitTesting(!isOpen)
             back
                 .opacity(isOpen ? 1 : 0)
-                .rotation3DEffect(.degrees(reduceMotion ? 0 : (isOpen ? 0 : 180)), axis: (x: 0, y: 1, z: 0))
                 .accessibilityHidden(!isOpen)
                 .allowsHitTesting(isOpen)
         }

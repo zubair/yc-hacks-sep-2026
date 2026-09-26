@@ -6,7 +6,7 @@ This `team/pranav` branch contains an integrated app implementation following th
 
 ## Run the fixture demo
 
-Requirements: Xcode 27.1 with the iOS 27.1 SDK and XcodeGen 2.46. On this machine the 27.1 Xcode app is in `~/Downloads/Xcode.app`. The app supports iOS 17 and later; Duo hinge input is available on iOS 27.1. The fixture flow was verified on iPhone 17 Pro (iOS 26.5), iPad mini (iOS 26.5), and iPhone Duo (iOS 27.1).
+Requirements: Xcode 27.1 with the iOS 27.1 SDK and XcodeGen 2.46. On this machine the 27.1 Xcode app is in `~/Downloads/Xcode.app`. The app supports iOS 17 and later; Duo hinge input is available on iOS 27.1.
 
 ```sh
 cd ios
@@ -17,7 +17,7 @@ DEVELOPER_DIR="$HOME/Downloads/Xcode.app/Contents/Developer" xcodebuild \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
-Open the generated project in Xcode and Run. With no local configuration file, the app enters fixture mode and labels it `DEMO · simulated sends`. A generated sample travel photo is preselected. Start as Alex, search for `sam`, select Sam Lee, write a note, Open, Seal, then tap Send. Open Inbox and use **View as Sam** to see the recipient side. A send is simulated only after the Send button is tapped. A failed send retains the same draft and request ID for retry.
+Open the generated project in Xcode and Run. With no local configuration file, the app enters fixture mode and labels it `DEMO · simulated sends`. A generated sample travel photo is preselected. Start as Alex, search for `sam`, select Sam Lee, open the postcard, write a note, seal it, then tap **Preview sending**. Open Inbox and use **View as Sam** to see the recipient side. A send is simulated only after the send button is tapped. A failed send retains the same draft and request ID for retry.
 
 The UI test runs this send and recipient-inbox flow:
 
@@ -30,9 +30,9 @@ xcodebuild -project Postcard.xcodeproj -scheme Postcard \
   -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test
 ```
 
-For Duo, change the destination to `platform=iOS Simulator,name=iPhone Duo,OS=27.1`. Open and close the device in Bitrig's 3D simulator to drive Apple's `onHingeChange` events. An opening hinge reveals the message side; closing an opened draft seals it. The Open and Seal buttons work on every supported device, and folding never sends the postcard.
+For Duo, change the destination to `platform=iOS Simulator,name=iPhone Duo,OS=27.1`. The iOS 27.1 build uses Apple's `onHingeChange` events when available. An opening hinge reveals the message side; closing an opened draft seals it. The Open and Seal buttons work on every supported device, and folding never sends the postcard. Bitrig provides a 3D Duo simulator for physical fold checks.
 
-The [iPhone](design/screenshots/iphone-17-pro-compose.png), [iPad](design/screenshots/ipad-mini-compose.png), and [Duo outer display](design/screenshots/duo-outer-compose.png) screenshots show the fixture compose screen.
+The [iPhone](design/screenshots/iphone-17-pro-compose.png), [iPad](design/screenshots/ipad-mini-compose.png), and [Duo outer display](design/screenshots/duo-outer-compose.png) screenshots show the fixture compose screen. Barrat's [visual system](design/SYSTEM.md) and [reference screens](design/references/README.md) document the UI.
 
 ## Run against local Supabase
 
@@ -65,7 +65,8 @@ The app has no print, payment, public-link, push delivery, or read-receipt featu
 ## Current verification
 
 - `swift test` passed for Core (1) and Services (5), including Zafar's recorded RPC responses and errors.
-- Xcode simulator build and the compose → send → recipient conversation UI test passed on iPhone 17 Pro, iOS 26.5. The Xcode 27.1 Duo build also passed.
+- The combined Xcode app builds for iPhone Duo on iOS 27.1. Eleven app tests and the iPhone 17 Pro simulator UI flow passed; the flow covers compose → send → recipient conversation, including the received note. Five shared UI package tests passed on the Duo simulator. The integrated app was captured on iPhone, iPad, and Duo displays.
 - Zafar's branch reports 18 backend end-to-end checks passing against local Supabase. A fresh run on this machine was blocked by Docker's internal DNS failing to resolve Docker Hub; the Swift adapter was checked against Zafar's recorded fixtures.
+- The native hinge API compiles and the posture state machine is tested. Physical fold input in Bitrig has not yet been verified with this integrated app.
 
 See [handoffs/pranav.md](handoffs/pranav.md) for the exact implementation status and remaining integration checks.

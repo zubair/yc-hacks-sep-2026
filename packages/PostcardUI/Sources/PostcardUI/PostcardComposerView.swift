@@ -1,14 +1,16 @@
 import SwiftUI
-import UIKit
 import PostcardCore
 import PostcardMotion
 
+/// Controlled composer. Only callbacks ask the host to change presentation or send.
 public struct PostcardComposerView: View {
     @Binding private var draft: PostcardDraft
-    private let presentationState: PostcardPresentationState
+    private let state: PostcardPresentationState
     private let error: String?
     private let recipientLookupResult: PostcardProfile?
     private let isLookingUpRecipient: Bool
+    private let recipientLookupMessage: String?
+    private let isDemo: Bool
     private let onLookupRecipient: (String) -> Void
     private let onSelectRecipient: (PostcardProfile) -> Void
     private let onChoosePhoto: () -> Void
@@ -17,244 +19,210 @@ public struct PostcardComposerView: View {
     private let onSend: () -> Void
     private let onRetry: () -> Void
     @State private var username = ""
-    @FocusState private var isNoteFocused: Bool
-    @FocusState private var isRecipientFocused: Bool
+    @FocusState private var messageFocused: Bool
+    @Environment(\.dynamicTypeSize) private var typeSize
 
-    public init(
-        draft: Binding<PostcardDraft>, presentationState: PostcardPresentationState,
-        error: String?, recipientLookupResult: PostcardProfile?, isLookingUpRecipient: Bool,
-        onLookupRecipient: @escaping (String) -> Void,
-        onSelectRecipient: @escaping (PostcardProfile) -> Void,
-        onChoosePhoto: @escaping () -> Void, onOpen: @escaping () -> Void,
-        onSeal: @escaping () -> Void, onSend: @escaping () -> Void,
-        onRetry: @escaping () -> Void
-    ) {
-        _draft = draft
-        self.presentationState = presentationState
-        self.error = error
+    public init(draft: Binding<PostcardDraft>, state: PostcardPresentationState,
+                error: String? = nil, recipientLookupResult: PostcardProfile? = nil,
+                isLookingUpRecipient: Bool = false, recipientLookupMessage: String? = nil,
+                isDemo: Bool = false,
+                onLookupRecipient: @escaping (String) -> Void,
+                onSelectRecipient: @escaping (PostcardProfile) -> Void,
+                onChoosePhoto: @escaping () -> Void, onOpen: @escaping () -> Void,
+                onSeal: @escaping () -> Void, onSend: @escaping () -> Void,
+                onRetry: @escaping () -> Void) {
+        _draft = draft; self.state = state; self.error = error
         self.recipientLookupResult = recipientLookupResult
         self.isLookingUpRecipient = isLookingUpRecipient
-        self.onLookupRecipient = onLookupRecipient
-        self.onSelectRecipient = onSelectRecipient
-        self.onChoosePhoto = onChoosePhoto
-        self.onOpen = onOpen
-        self.onSeal = onSeal
-        self.onSend = onSend
-        self.onRetry = onRetry
+        self.recipientLookupMessage = recipientLookupMessage; self.isDemo = isDemo
+        self.onLookupRecipient = onLookupRecipient; self.onSelectRecipient = onSelectRecipient
+        self.onChoosePhoto = onChoosePhoto; self.onOpen = onOpen; self.onSeal = onSeal
+        self.onSend = onSend; self.onRetry = onRetry
+    }
+
+    private var busy: Bool { state == .sending || state == .sent }
+    private var isOpen: Bool { state == .writing }
+    private var issue: String? { PostcardFormRules.sendIssue(draft) }
+    private var title: String {
+        switch state {
+        case .writing: "Make it personal."
+        case .sealed: "Sealed with love."
+        case .sending: "On its way."
+        case .sent: isDemo ? "A little closer. (Demo)" : "A little closer."
+        default: "Wish you were here."
+        }
     }
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Make a postcard")
-                        .font(.system(size: 34, weight: .bold, design: .serif))
-                    Text("A photo, a few words, one person.")
-                        .font(.subheadline)
-                        .foregroundStyle(PostcardTheme.mutedInk)
-                }
-
-                PostcardFlipContainer(isOpen: presentationState == .writing) {
-                    front
-                } back: {
-                    back
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 250)
-                .modifier(PostcardSealEffect(isSealed: presentationState == .sealed || presentationState == .sending || presentationState == .sent))
-                .accessibilityElement(children: .contain)
-
-                if presentationState == .sent {
-                    Label("Postcard stored in the conversation", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(PostcardTheme.ink)
-                        .accessibilityAddTraits(.isStaticText)
-                }
-
-                recipientSection
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("From")
-                        .font(.headline)
-                    TextField("Your name", text: $draft.senderName)
-                        .modifier(PaperField())
-                        .textContentType(.name)
-                    TextField("Destination or place", text: $draft.destination)
-                        .modifier(PaperField())
-                    Text("Your note")
-                        .font(.headline)
-                    TextEditor(text: $draft.message)
-                        .focused($isNoteFocused)
-                        .frame(minHeight: 150)
-                        .scrollContentBackground(.hidden)
-                        .modifier(PaperField())
-                        .accessibilityLabel("Postcard note")
-                    Text("\(draft.message.count) / 5,000 characters")
-                        .font(.caption)
-                        .foregroundStyle(PostcardTheme.mutedInk)
-                }
-
-                if let error {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(error).foregroundStyle(PostcardTheme.accent)
-                        Button("Try sending again", action: onRetry)
-                            .buttonStyle(PaperButtonStyle())
+        PaperScreen {
+            GeometryReader { geometry in
+                ScrollViewReader { scroll in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 26) {
+                            DemoLabel(isDemo: isDemo)
+                            PostcardHeading(eyebrow: "Postcard / a little closer", title: title,
+                                            subtitle: isOpen ? "A few words can carry you a long way." : "A moment from your world, sent to theirs.")
+                            if geometry.size.width >= 760 && !typeSize.isAccessibilitySize {
+                                HStack(alignment: .top, spacing: 36) {
+                                    card.frame(maxWidth: .infinity)
+                                    controls.frame(width: min(340, geometry.size.width * 0.4))
+                                }
+                            } else {
+                                card
+                                controls
+                            }
+                        }.padding(24).frame(maxWidth: 1100).frame(maxWidth: .infinity)
                     }
-                    .accessibilityElement(children: .combine)
+                    .scrollDismissesKeyboard(.interactively)
+                    .onChange(of: messageFocused) { _, focused in
+                        if focused { scroll.scrollTo("message-editor", anchor: .center) }
+                    }
                 }
-
-                actionButtons
             }
-            .frame(maxWidth: 660)
-            .padding(20)
-            .padding(.top, 20)
-            .frame(maxWidth: .infinity)
         }
-        .background(PostcardTheme.paper.ignoresSafeArea())
-        .foregroundStyle(PostcardTheme.ink)
-        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom) {
+            if !busy {
+                primaryAction.padding(.horizontal, 24).padding(.vertical, 12)
+                    .frame(maxWidth: 760).frame(maxWidth: .infinity)
+                    .background(PostcardStyle.paper)
+            }
+        }
+        .navigationTitle("Your postcard").navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button("Done") { isNoteFocused = false }
+                Button("Done") { messageFocused = false }
             }
         }
     }
 
-    private var front: some View {
-        GeometryReader { geometry in
-            ZStack {
-                Rectangle().fill(PostcardTheme.ink)
-                if let data = draft.photoData, let image = UIImage(data: data) {
-                    Image(uiImage: image).resizable().scaledToFill()
-                        .frame(width: geometry.size.width, height: geometry.size.height).clipped()
-                        .accessibilityLabel("Selected postcard photo")
-                } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "photo.on.rectangle.angled")
-                            .font(.system(size: 44, weight: .ultraLight))
-                        Text("Your favorite view goes here")
-                            .font(.system(.title3, design: .serif))
-                    }
-                    .foregroundStyle(PostcardTheme.paper)
-                }
-                VStack {
-                    Spacer()
-                    HStack {
-                        Text(draft.destination.isEmpty ? "SOMEWHERE WONDERFUL" : draft.destination.uppercased())
-                            .font(.caption.weight(.semibold))
-                            .tracking(1.5)
-                        Spacer()
-                    }
-                    .padding(14)
-                    .foregroundStyle(.white)
-                    .background(.black.opacity(0.48))
-                }
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-            .shadow(color: .black.opacity(0.15), radius: 14, y: 6)
+    private var card: some View {
+        PostcardFlipContainer(isOpen: isOpen, duration: 0.8) {
+            PostcardFront(photoData: draft.photoData, destination: draft.destination,
+                          recipient: draft.recipientName, sealed: state == .sealed || busy)
+                .modifier(PostcardSealEffect(isSealed: state == .sealed || busy))
+                .accessibilityHidden(isOpen).allowsHitTesting(!isOpen)
+        } back: {
+            writingBack.accessibilityHidden(!isOpen).allowsHitTesting(isOpen)
         }
     }
 
-    private var back: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("DEAR \(draft.recipientName.isEmpty ? "FRIEND" : draft.recipientName.uppercased()),")
-                    .font(.caption.weight(.bold)).tracking(1)
-                ScrollView {
-                    Text(draft.message.isEmpty ? "Your message will appear here." : draft.message)
-                        .font(.system(.body, design: .serif))
-                        .frame(maxWidth: .infinity, alignment: .leading)
+    private var writingBack: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("DEAR").font(.caption.weight(.semibold)).tracking(2)
+                    Text(draft.recipientName.isEmpty ? "someone special," : "\(draft.recipientName),")
+                        .font(.system(.title2, design: .serif)).fixedSize(horizontal: false, vertical: true)
                 }
-                Text(draft.senderName.isEmpty ? "— from you" : "— \(draft.senderName)")
-                    .font(.system(.body, design: .serif).italic())
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Rectangle().fill(PostcardTheme.line).frame(width: 1).padding(.horizontal, 16)
-            VStack(alignment: .leading) {
-                Image(systemName: "seal")
-                    .font(.system(size: 34))
-                    .foregroundStyle(PostcardTheme.accent)
                 Spacer()
-                Text(draft.recipientName.isEmpty ? "Recipient" : draft.recipientName)
-                    .font(.headline)
-                Text(draft.destination.isEmpty ? "A place, remembered" : draft.destination)
-                    .font(.caption)
-                    .foregroundStyle(PostcardTheme.mutedInk)
+                PostcardStamp()
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Your message").font(.caption.weight(.semibold)).foregroundStyle(PostcardStyle.muted)
+            TextField("Wish you were here…", text: $draft.message, axis: .vertical)
+                .font(.system(.title3, design: .serif)).lineSpacing(7).lineLimit(6...14)
+                .focused($messageFocused).accessibilityLabel("Your message")
+                .accessibilityIdentifier("message-editor").id("message-editor")
+            Text("\(draft.message.count.formatted()) / 5,000")
+                .font(.caption).foregroundStyle(draft.message.count > 5000 ? PostcardStyle.vermilion : PostcardStyle.muted)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .accessibilityLabel("\(draft.message.count) of 5000 characters")
+            Divider().overlay(PostcardStyle.rule)
+            LabeledInput(title: "WITH LOVE FROM", placeholder: "Your name", text: $draft.senderName)
+        }.padding(24).background(PostcardStyle.card)
+            .overlay(Rectangle().stroke(PostcardStyle.rule, lineWidth: 0.5))
+            .shadow(color: PostcardStyle.ink.opacity(0.08), radius: 18, y: 8)
+    }
+
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            if let error { PostcardNotice(text: error, isError: true).accessibilityIdentifier("composer-error") }
+            if state == .sent {
+                Label(isDemo ? "Demo postcard saved" : "Postcard sent", systemImage: "checkmark.circle.fill")
+                    .font(.title3.weight(.medium)).accessibilityIdentifier("sent-state")
+                Text(isDemo ? "Saved in the demo inbox. View as the recipient to see it." : "Your postcard is saved in the conversation.")
+                    .foregroundStyle(PostcardStyle.muted)
+            } else if state == .sending {
+                ProgressView(isDemo ? "Previewing send…" : "Sending your postcard…")
+                Text("Your note is safe while we send it.").font(.subheadline).foregroundStyle(PostcardStyle.muted)
+            } else {
+                if state == .sealed {
+                    Label("To \(draft.recipientName.isEmpty ? "someone special" : draft.recipientName)", systemImage: "person.crop.circle")
+                        .font(.subheadline.weight(.medium))
+                } else {
+                    recipientSection
+                }
+                if state == .front {
+                    LabeledInput(title: "GREETINGS FROM", placeholder: "A place, a feeling, a moment", text: $draft.destination)
+                    Button(action: onChoosePhoto) {
+                        Label(draft.photoData == nil ? "Choose a photograph" : "Change photograph", systemImage: "photo")
+                    }.buttonStyle(PostcardButtonStyle(secondary: true)).accessibilityIdentifier("choose-photo")
+                }
+                if state == .sealed {
+                    if let issue { PostcardNotice(text: issue) }
+                    Button("Open to edit", action: onOpen).buttonStyle(PostcardButtonStyle(secondary: true))
+                        .accessibilityIdentifier("open-postcard")
+                } else if isOpen {
+                    Text("Closing seals your draft. You choose when to send.")
+                        .font(.caption).foregroundStyle(PostcardStyle.muted)
+                }
+                if error != nil {
+                    Button("Try again", action: onRetry).buttonStyle(PostcardButtonStyle(secondary: true))
+                        .disabled(state == .sealed && issue != nil).accessibilityIdentifier("retry-postcard")
+                }
+            }
+        }.disabled(busy)
+    }
+
+    @ViewBuilder private var primaryAction: some View {
+        if state == .sealed {
+            Button(action: onSend) {
+                Label(isDemo ? "Preview sending" : "Send your postcard", systemImage: "paperplane")
+            }.buttonStyle(PostcardButtonStyle()).disabled(issue != nil).accessibilityIdentifier("send-postcard")
+        } else if isOpen {
+            Button { messageFocused = false; onSeal() } label: {
+                Label("Close & seal", systemImage: "heart")
+            }.buttonStyle(PostcardButtonStyle()).accessibilityIdentifier("seal-postcard")
+        } else {
+            Button(action: onOpen) { Label("Open your postcard", systemImage: "arrow.turn.up.right") }
+                .buttonStyle(PostcardButtonStyle()).accessibilityIdentifier("open-postcard")
         }
-        .padding(18)
-        .background(.white)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
-        .shadow(color: .black.opacity(0.15), radius: 14, y: 6)
     }
 
     private var recipientSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("To")
-                .font(.headline)
-            HStack {
-                TextField("Exact username", text: $username)
-                    .focused($isRecipientFocused)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .onSubmit { isRecipientFocused = false; onLookupRecipient(username) }
-                    .modifier(PaperField())
-                    .accessibilityLabel("Recipient username")
-                Button {
-                    isRecipientFocused = false
-                    onLookupRecipient(username)
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("Find recipient")
-                .disabled(username.trimmingCharacters(in: .whitespaces).isEmpty || isLookingUpRecipient)
-            }
-            if isLookingUpRecipient { ProgressView("Finding recipient") }
-            if let result = recipientLookupResult {
-                Button {
-                    isRecipientFocused = false
-                    username = result.username
-                    onSelectRecipient(result)
-                } label: {
-                    Label("\(result.displayName) · @\(result.username)", systemImage: "person.crop.circle")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                }
-                .background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 10))
-            }
             if draft.recipientId != nil {
-                Label("Selected: \(draft.recipientName)", systemImage: "checkmark.circle.fill")
-                    .font(.subheadline)
+                Label("To \(draft.recipientName)", systemImage: "person.crop.circle.badge.checkmark")
+                    .font(.subheadline.weight(.medium)).accessibilityIdentifier("selected-recipient")
+            }
+            Text("FIND SOMEONE BY USERNAME").font(.caption.weight(.semibold)).foregroundStyle(PostcardStyle.muted)
+            HStack(alignment: .center, spacing: 8) {
+                TextField("e.g. olivia", text: $username)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled().textContentType(.username)
+                    .padding(12).background(PostcardStyle.card, in: RoundedRectangle(cornerRadius: 10))
+                    .accessibilityLabel("Recipient username").accessibilityIdentifier("recipient-username")
+                    .onSubmit { lookup() }
+                Button(action: lookup) {
+                    if isLookingUpRecipient { ProgressView().accessibilityLabel("Finding recipient") }
+                    else { Image(systemName: "magnifyingglass").frame(width: 44, height: 44) }
+                }.disabled(isLookingUpRecipient || !PostcardFormRules.validUsername(PostcardFormRules.normalizedUsername(username)))
+                    .accessibilityLabel("Find recipient").accessibilityIdentifier("find-recipient")
+            }
+            if let profile = recipientLookupResult,
+               profile.username.lowercased() == PostcardFormRules.normalizedUsername(username) {
+                Button { onSelectRecipient(profile) } label: {
+                    Label("Choose \(profile.displayName) (@\(profile.username))", systemImage: "person.crop.circle.badge.plus")
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }.accessibilityIdentifier("select-recipient")
+            }
+            if let recipientLookupMessage {
+                Text(recipientLookupMessage).font(.caption).foregroundStyle(PostcardStyle.muted)
             }
         }
     }
-
-    private var actionButtons: some View {
-        VStack(spacing: 10) {
-            Button(draft.photoData == nil ? "Choose a photo" : "Change photo", action: onChoosePhoto)
-                .buttonStyle(PaperButtonStyle())
-            if presentationState == .front || presentationState == .sealed {
-                Button("Open postcard") { isNoteFocused = false; onOpen() }
-                    .buttonStyle(PaperButtonStyle())
-            }
-            if presentationState == .sent {
-                Button("Write another postcard") { isNoteFocused = false; onOpen() }
-                    .buttonStyle(PaperButtonStyle(prominent: true))
-            }
-            if presentationState == .writing {
-                Button("Seal postcard") { isNoteFocused = false; onSeal() }
-                    .buttonStyle(PaperButtonStyle())
-            }
-            if presentationState == .sealed {
-                Button("Send postcard") { isNoteFocused = false; onSend() }
-                    .buttonStyle(PaperButtonStyle(prominent: true))
-                    .disabled(draft.recipientId == nil || draft.photoData == nil || draft.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            if presentationState == .sending { ProgressView("Sending postcard") }
-        }
+    private func lookup() {
+        let query = PostcardFormRules.normalizedUsername(username)
+        guard !isLookingUpRecipient, PostcardFormRules.validUsername(query) else { return }
+        onLookupRecipient(query)
     }
 }
