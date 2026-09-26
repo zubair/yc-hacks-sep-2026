@@ -8,6 +8,8 @@
 
 **Remaining dependency.** `ios/project.yml` references `../packages/PostcardCore|PostcardServices|PostcardMotion|PostcardUI`. `PostcardUI` is now tracked from Barrat. Core, Services, and Motion are still local excluded contract stubs because Pranav's branch has not landed here. They are not competing production implementations. The integration agent must merge Pranav, remove the local stubs, and rebuild. The old local PostcardUI stub was preserved at `/private/tmp/postcardui-contract-stub-ff6f7ca` before the merge.
 
+**Demo shortcut (2026-09-26, later).** Fixture mode now starts signed in as Alice (`FixturePostcardService(signedInAs:)`), so the demo skips the sign-in form; live mode still shows `PostcardAuthView`. The demo hint uses `alice@demo.com` because Barrat's email rule requires a dotted domain. On the inner display (regular width) `ComposeScreen` wraps Barrat's composer in `ArrangementView(.split)` with a new `DuoComposeStage` as the secondary pane: the card flips with presentation state, tilts with the hinge angle (Reduce Motion aware), and reads `reservedRegions(kind: .division)` for its fold readout. Open/Seal are also titled toolbar items so they move into the vertical bar. Duo APIs now compiled and exercised: `onHingeChange`/`DeviceHinge`, `ArrangementView` + `arrangementViewStyle(.split)`, `GeometryProxy.reservedRegions`, `ToolbarItem.axisBehavior`/`visibilityPriority`, `ToolbarOverflowMenu`.
+
 ## Source
 
 Branch `team/zubair`. Files (all new):
